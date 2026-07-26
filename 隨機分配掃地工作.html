@@ -1,0 +1,527 @@
+﻿<!doctype html>
+<html lang="zh-TW">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>教室掃地工作分配系統</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
+    body{font-family:'Noto Sans TC',sans-serif;background-color:#f0f4f8;box-sizing:border-box}
+    .seat-button{transition:all .2s;position:relative;user-select:none;border:none;cursor:pointer}
+    .seat-button:hover{transform:translateY(-2px)}
+    .seat-button.selected{background-color:#818cf8;color:white}
+    .task-count{position:absolute;top:-8px;right:-8px;background-color:#ef4444;color:white;border-radius:50%;width:22px;height:22px;font-size:12px;display:flex;align-items:center;justify-content:center;font-weight:bold}
+    .assigned-task{background-color:#f0fdf4;border:1px solid #86efac;border-radius:4px;padding:6px 8px;display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;font-size:14px}
+    .sync-status {font-size: 13px; padding: 4px 10px; border-radius: 20px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;}
+    .sync-online {background-color: #d1fae5; color: #065f46;}
+    .sync-offline {background-color: #fee2e2; color: #991b1b;}
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js" type="text/javascript"></script>
+ </head>
+ <body>
+  <div class="container mx-auto px-4 py-8 max-w-5xl">
+   <header class="text-center mb-8">
+    <div class="flex justify-center items-center gap-3 mb-2 flex-wrap">
+      <h1 class="text-3xl font-bold text-indigo-700">掃地工作分配系統</h1>
+      <span id="syncStatus" class="sync-status sync-offline">雲端連線中...</span>
+    </div>
+    <p class="text-gray-600 mb-2">選座號→可選指定工作→勾選隨機工作→開始分配</p>
+    <button id="roomShareBtn" class="text-xs bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-3 py-1 rounded-full font-medium transition-all">
+      🔗 複製即時同步房間連結
+    </button>
+   </header>
+
+   <div id="mainSection" class="bg-white rounded-lg shadow-lg p-6 mb-8">
+    <div class="mb-6">
+     <h2 class="text-xl font-semibold text-gray-800 mb-3">步驟 1: 選擇座號與工作數量</h2>
+     <div id="seatsContainer" class="grid grid-cols-5 sm:grid-cols-7 md:grid-cols-10 gap-2 mb-4"></div>
+     <button id="clearSeatsBtn" class="text-red-600 hover:text-red-800 text-sm">清除所有</button>
+    </div>
+    <div class="mb-6">
+     <div class="flex justify-between mb-3">
+      <h2 class="text-xl font-semibold text-gray-800">步驟 2: 分配工作</h2>
+      <button id="resetTasksBtn" class="bg-gray-600 text-white px-3 py-1 rounded text-sm hover:bg-gray-700">重置工作</button>
+     </div>
+     <div class="flex gap-2 mb-4">
+      <input type="text" id="newTaskInput" placeholder="新增工作..." class="flex-1 px-3 py-2 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500">
+      <button id="addTaskBtn" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">新增</button>
+     </div>
+     <p class="text-sm font-semibold text-gray-700 mb-2">(可選指定工作給座號)</p>
+     <div id="assignmentContainer" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6"></div>
+     <p class="text-sm font-semibold text-gray-700 mb-2">隨機工作池 (打勾的工作會隨機分配)</p>
+     <div id="randomTasksContainer" class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4"></div>
+    </div>
+    <div class="text-center">
+     <button id="assignBtn" class="bg-green-600 text-white px-6 py-3 rounded text-lg font-medium hover:bg-green-700">開始分配</button>
+    </div>
+   </div>
+
+   <div id="resultSection" class="bg-white rounded-lg shadow-lg p-6 mb-8 hidden">
+    <h2 class="text-xl font-semibold mb-4">分配結果</h2>
+    <div id="resultContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    <div class="mt-6 text-center space-x-2">
+     <button id="resetBtn" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700">重新分配</button>
+     <button id="shareBtn" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">分享靜態結果</button>
+     <button id="newBtn" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">新建/清空</button>
+    </div>
+    <input id="shareLink" type="text" class="hidden w-full mt-2 border p-2 rounded" readonly>
+   </div>
+  </div>
+
+  <script>
+    // --- Firebase 配置與初始化 ---
+    // 請將下方 firebaseConfig 替換為你的 Firebase 專案設定
+    const firebaseConfig = {
+         apiKey: "AIzaSyAT9VXm8gf5Pn4A1iu3xXF6X8Ve9NYlUAk",
+  authDomain: "teacherboard-9224d.firebaseapp.com",
+  projectId: "teacherboard-9224d",
+  storageBucket: "teacherboard-9224d.firebasestorage.app",
+  messagingSenderId: "801036213120",
+  appId: "1:801036213120:web:2077de68b0a74395023f65"
+    };
+
+    let db = null;
+    let roomRef = null;
+    let isCloudConnected = false;
+    let roomId = 'default_room';
+
+    try {
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        db = firebase.firestore();
+    } catch (e) {
+        console.warn("Firebase 未設定或加載失敗，切換為本地離線模式。");
+    }
+
+    const defaultTasks = ['教室掃拖(一二)','教室掃拖(三四)','教室掃拖(五六)','教室掃拖(前)','教室掃拖(後)','黑板','倒垃圾','走廊掃拖','檢查、擦桌子'];
+    let selectedStudents = {};
+    let assignmentResults = [];
+    let mixedAssignments = {};
+    let allTasks = [];
+    let taskIdCounter = 0;
+    let isResultView = false;
+
+    // 解析 URL 中的房間 ID
+    const parseRoomId = () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const room = urlParams.get('room');
+        if (room) roomId = room;
+    };
+
+    // Firebase 即時同步聽取器
+    const initCloudSync = () => {
+        const statusEl = document.getElementById('syncStatus');
+        if (!db) {
+            if (statusEl) {
+                statusEl.textContent = '離線模式';
+                statusEl.className = 'sync-status sync-offline';
+            }
+            loadLocal();
+            return;
+        }
+
+        roomRef = db.collection('sweeping_assignments').doc(roomId);
+
+        roomRef.onSnapshot((doc) => {
+            isCloudConnected = true;
+            if (statusEl) {
+                statusEl.textContent = `雲端同步中 (${roomId})`;
+                statusEl.className = 'sync-status sync-online';
+            }
+
+            if (doc.exists) {
+                const data = doc.data();
+                selectedStudents = data.selectedStudents || {};
+                mixedAssignments = data.mixedAssignments || {};
+                allTasks = data.allTasks || [];
+                taskIdCounter = data.taskIdCounter || 0;
+                assignmentResults = data.assignmentResults || [];
+                isResultView = data.isResultView || false;
+
+                updateUIFromState();
+            } else {
+                save(); // 無資料時發起初始資料備份
+            }
+        }, (error) => {
+            console.error("Firestore 同步錯誤:", error);
+            isCloudConnected = false;
+            if (statusEl) {
+                statusEl.textContent = '雲端連線失敗 (離線模式)';
+                statusEl.className = 'sync-status sync-offline';
+            }
+            loadLocal();
+        });
+    };
+
+    const save = () => {
+        const statePayload = {
+            selectedStudents,
+            mixedAssignments,
+            allTasks,
+            taskIdCounter,
+            assignmentResults,
+            isResultView,
+            updatedAt: firebase.firestore.FieldValue ? firebase.firestore.FieldValue.serverTimestamp() : Date.now()
+        };
+
+        // 本地備份
+        localStorage.setItem('state_' + roomId, JSON.stringify(statePayload));
+
+        // 雲端同步
+        if (roomRef && isCloudConnected) {
+            roomRef.set(statePayload, { merge: true }).catch(err => console.error("雲端寫入失敗:", err));
+        }
+    };
+
+    const loadLocal = () => {
+        const d = JSON.parse(localStorage.getItem('state_' + roomId) || '{}');
+        selectedStudents = d.selectedStudents || {};
+        mixedAssignments = d.mixedAssignments || {};
+        allTasks = d.allTasks || [];
+        taskIdCounter = d.taskIdCounter || 0;
+        assignmentResults = d.assignmentResults || [];
+        isResultView = d.isResultView || false;
+
+        if (allTasks.length === 0) {
+            taskIdCounter = 0;
+            allTasks = defaultTasks.map(n => ({ id: ++taskIdCounter, name: n, checked: true }));
+        }
+
+        updateUIFromState();
+    };
+
+    const updateUIFromState = () => {
+        renderSeatsState();
+        renderTasks();
+        renderAssign();
+        
+        if (isResultView) {
+            renderResultsView();
+            document.getElementById('mainSection').classList.add('hidden');
+            document.getElementById('resultSection').classList.remove('hidden');
+        } else {
+            document.getElementById('mainSection').classList.remove('hidden');
+            document.getElementById('resultSection').classList.add('hidden');
+        }
+    };
+
+    const renderTasks = () => {
+        const container = document.getElementById('randomTasksContainer');
+        container.innerHTML = '';
+        allTasks.forEach(t => {
+            const d = document.createElement('div');
+            d.className = 'border border-gray-300 rounded p-3 flex gap-2 items-center';
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.checked = t.checked;
+            cb.onchange = () => {
+                t.checked = cb.checked;
+                save();
+            };
+            const span = document.createElement('span');
+            span.textContent = t.name;
+            span.className = 'flex-1';
+            d.append(cb, span);
+            const btn = document.createElement('button');
+            btn.className = 'text-red-600 text-sm hover:text-red-800';
+            btn.textContent = '刪除';
+            btn.onclick = () => confirm(`刪除「${t.name}」？`) && (allTasks = allTasks.filter(x => x.id !== t.id), renderTasks(), save());
+            d.appendChild(btn);
+            container.appendChild(d);
+        });
+    };
+
+    const renderAssign = () => {
+        const container = document.getElementById('assignmentContainer');
+        container.innerHTML = '';
+        Object.keys(selectedStudents).sort((a,b) => parseInt(a) - parseInt(b)).forEach(s => {
+            const card = document.createElement('div');
+            card.className = 'border border-indigo-200 rounded p-3 bg-indigo-50';
+            const h = document.createElement('div');
+            h.className = 'font-bold mb-2';
+            h.textContent = `座號 ${s}`;
+            card.appendChild(h);
+
+            mixedAssignments[s] || (mixedAssignments[s] = []);
+            const tasks = document.createElement('div');
+            mixedAssignments[s].forEach((tid, idx) => {
+                const t = allTasks.find(x => x.id === tid);
+                if(t){
+                    const item = document.createElement('div');
+                    item.className = 'assigned-task';
+                    const span = document.createElement('span');
+                    span.textContent = `📌 ${t.name}`;
+                    const rmBtn = document.createElement('button');
+                    rmBtn.className = 'text-red-600 hover:text-red-800 text-xs';
+                    rmBtn.textContent = '✕';
+                    rmBtn.onclick = () => {
+                        mixedAssignments[s].splice(idx,1);
+                        renderAssign();
+                        save();
+                    };
+                    item.append(span, rmBtn);
+                    tasks.appendChild(item);
+                }
+            });
+            card.appendChild(tasks);
+
+            const addBtn = document.createElement('button');
+            addBtn.className = 'w-full bg-blue-500 text-white px-2 py-1 rounded text-sm hover:bg-blue-600 mt-2';
+            addBtn.textContent = '+ 指定工作';
+            addBtn.onclick = () => {
+                const sel = document.createElement('select');
+                sel.className = 'w-full px-2 py-1 border rounded text-sm';
+                sel.innerHTML = '<option value="">選擇工作...</option>';
+                allTasks.forEach(t => {
+                    const opt = document.createElement('option');
+                    opt.value = t.id;
+                    opt.textContent = t.name;
+                    sel.appendChild(opt);
+                });
+                sel.onchange = () => {
+                    if(sel.value){
+                        const tid = parseInt(sel.value);
+                        const need = selectedStudents[s];
+                        if(mixedAssignments[s].length >= need) {
+                            alert(`已達上限(${need})`);
+                        } else if(mixedAssignments[s].includes(tid)) {
+                            alert('已指定');
+                        } else {
+                            mixedAssignments[s].push(tid);
+                            renderAssign();
+                            save();
+                        }
+                    }
+                };
+                addBtn.replaceWith(sel);
+                sel.focus();
+            };
+            card.appendChild(addBtn);
+            container.appendChild(card);
+        });
+    };
+
+    const genSeats = () => {
+        const c = document.getElementById('seatsContainer');
+        c.innerHTML = '';
+        for(let i = 1; i <= 35; i++){
+            if(i === 15) continue;
+            const btn = document.createElement('button');
+            btn.className = 'seat-button bg-gray-200 hover:bg-gray-300 rounded py-3 font-medium';
+            btn.textContent = i;
+            btn.dataset.seat = i;
+
+            let timer = null;
+            btn.onclick = () => {
+                selectedStudents[i] ? selectedStudents[i]++ : selectedStudents[i] = 1;
+                if (!mixedAssignments[i]) mixedAssignments[i] = [];
+                renderSeatsState();
+                renderAssign();
+                save();
+            };
+            btn.onmousedown = () => {
+                if(selectedStudents[i]) {
+                    timer = setTimeout(() => {
+                        delete selectedStudents[i];
+                        delete mixedAssignments[i];
+                        renderSeatsState();
+                        renderAssign();
+                        save();
+                    }, 500);
+                }
+            };
+            btn.onmouseup = btn.onmouseleave = () => clearTimeout(timer);
+            c.appendChild(btn);
+        }
+    };
+
+    const renderSeatsState = () => {
+        const btns = document.querySelectorAll('.seat-button');
+        btns.forEach(btn => {
+            const i = btn.dataset.seat;
+            btn.querySelector('.task-count')?.remove();
+            if (selectedStudents[i]) {
+                btn.classList.add('selected');
+                const badge = document.createElement('span');
+                badge.className = 'task-count';
+                badge.textContent = selectedStudents[i];
+                btn.appendChild(badge);
+            } else {
+                btn.classList.remove('selected');
+            }
+        });
+    };
+
+    const renderResultsView = () => {
+        const rc = document.getElementById('resultContainer');
+        rc.innerHTML = '';
+        assignmentResults.forEach((r, idx) => {
+            const card = document.createElement('div');
+            card.className = 'border border-gray-300 rounded p-4 bg-white';
+            let html = `<div class="font-bold text-lg mb-2 bg-indigo-100 px-2 py-1 rounded inline-block">座號 ${r.student}</div><div class="mt-2">`;
+            r.tasks.forEach((tk, tidx) => {
+                html += `<div class="flex justify-between py-1 ${tk.completed ? 'bg-green-100 px-1 rounded' : ''}">
+                            <span>${tk.task}</span>
+                            <input type="checkbox" ${tk.completed ? 'checked' : ''} onchange="toggleTaskComplete(${idx}, ${tidx}, this.checked)">
+                         </div>`;
+            });
+            html += '</div>';
+            card.innerHTML = html;
+            rc.appendChild(card);
+        });
+    };
+
+    window.toggleTaskComplete = (resIdx, taskIdx, isChecked) => {
+        if(assignmentResults[resIdx] && assignmentResults[resIdx].tasks[taskIdx]) {
+            assignmentResults[resIdx].tasks[taskIdx].completed = isChecked;
+            save();
+        }
+    };
+
+    // 事件監聽與按鈕行為設定
+    document.getElementById('addTaskBtn').onclick = () => {
+        const n = document.getElementById('newTaskInput').value.trim();
+        if (n) {
+            if (!allTasks.some(t => t.name === n)) {
+                allTasks.push({ id: ++taskIdCounter, name: n, checked: true });
+                renderTasks();
+                save();
+                document.getElementById('newTaskInput').value = '';
+            } else alert('已存在');
+        }
+    };
+
+    document.getElementById('newTaskInput').onkeypress = e => e.key === 'Enter' && document.getElementById('addTaskBtn').click();
+
+    document.getElementById('resetTasksBtn').onclick = () => {
+        if (confirm('重置工作名稱？')) {
+            taskIdCounter = 0;
+            allTasks = defaultTasks.map(n => ({ id: ++taskIdCounter, name: n, checked: true }));
+            renderTasks();
+            save();
+        }
+    };
+
+    document.getElementById('clearSeatsBtn').onclick = () => {
+        selectedStudents = {};
+        mixedAssignments = {};
+        renderSeatsState();
+        renderAssign();
+        save();
+    };
+
+    document.getElementById('assignBtn').onclick = () => {
+        const list = Object.keys(selectedStudents);
+        if (!list.length) return alert('請選擇學生！');
+        const checkedTasks = allTasks.filter(t => t.checked);
+        if (!checkedTasks.length) return alert('請勾選隨機工作！');
+
+        assignmentResults = [];
+        const totalNeed = Object.values(selectedStudents).reduce((a,b) => a+b, 0);
+        const assignedCount = Object.values(mixedAssignments).reduce((a,b) => a+b.length, 0);
+        const randomNeed = totalNeed - assignedCount;
+
+        if (randomNeed < 0) return alert('指定工作數超過所需！');
+        if (randomNeed > 0 && !checkedTasks.length) return alert('請勾選隨機工作填補空缺！');
+
+        let randomPool = [];
+        for (let i = 0; i < randomNeed; i++) {
+            const taskIdx = i % checkedTasks.length;
+            randomPool.push(checkedTasks[taskIdx].id);
+        }
+        randomPool.sort(() => Math.random() - .5);
+
+        let poolIdx = 0;
+        list.sort((a,b) => parseInt(a) - parseInt(b)).forEach(s => {
+            const asn = mixedAssignments[s].map(tid => ({ task: allTasks.find(t => t.id === tid)?.name || '', completed: false }));
+            const need = selectedStudents[s];
+            for (let i = 0; i < need - asn.length; i++) {
+                const tid = randomPool[poolIdx++];
+                const t = allTasks.find(x => x.id === tid);
+                asn.push({ task: t?.name || '', completed: false });
+            }
+            assignmentResults.push({ student: s, tasks: asn });
+        });
+
+        isResultView = true;
+        save();
+    };
+
+    document.getElementById('resetBtn').onclick = () => {
+        isResultView = false;
+        save();
+    };
+
+    document.getElementById('shareBtn').onclick = () => {
+        const url = `${location.origin}${location.pathname}?d=${btoa(JSON.stringify({ results: assignmentResults, date: new Date().toISOString() }))}`;
+        const link = document.getElementById('shareLink');
+        link.value = url;
+        link.classList.remove('hidden');
+        link.select();
+        document.execCommand('copy');
+        alert('已複製靜態結果連結！');
+    };
+
+    document.getElementById('roomShareBtn').onclick = () => {
+        const url = `${location.origin}${location.pathname}?room=${roomId}`;
+        navigator.clipboard.writeText(url).then(() => {
+            alert(`已複製即時同步房間連結：\n${url}`);
+        }).catch(() => {
+            prompt('請複製以下即時同步房間連結：', url);
+        });
+    };
+
+    document.getElementById('newBtn').onclick = () => {
+        if(confirm('確定要清空並重置所有資料嗎？')) {
+            localStorage.removeItem('state_' + roomId);
+            selectedStudents = {};
+            mixedAssignments = {};
+            assignmentResults = [];
+            isResultView = false;
+            taskIdCounter = 0;
+            allTasks = defaultTasks.map(n => ({ id: ++taskIdCounter, name: n, checked: true }));
+            save();
+        }
+    };
+
+    const initApp = () => {
+        parseRoomId();
+        genSeats();
+        
+        // 載入 URL 中的靜態結果 (若有 ?d= 參數)
+        const params = new URLSearchParams(location.search);
+        const staticData = params.get('d');
+        if (staticData) {
+            try {
+                const p = JSON.parse(atob(staticData));
+                document.getElementById('mainSection').classList.add('hidden');
+                document.getElementById('resultSection').classList.remove('hidden');
+                const rc = document.getElementById('resultContainer');
+                rc.innerHTML = '';
+                p.results.forEach(r => {
+                    const card = document.createElement('div');
+                    card.className = 'border border-gray-300 rounded p-4 bg-white';
+                    let html = `<div class="font-bold text-lg mb-2 bg-indigo-100 px-2 py-1 rounded inline-block">座號 ${r.student}</div><div class="mt-2">`;
+                    r.tasks.forEach(t => { html += `<div class="py-1">${t.task}</div>`; });
+                    html += '</div>';
+                    card.innerHTML = html;
+                    rc.appendChild(card);
+                });
+                return;
+            } catch(e) {}
+        }
+
+        initCloudSync();
+    };
+
+    document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', initApp) : initApp();
+  </script>
+ </body>
+</html>

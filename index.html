@@ -1,0 +1,638 @@
+﻿<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>班級經營網站管理 - 雲端同步版</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase 設定 (請將下面的 YOUR_API_KEY 等更換為您的 Firebase 專案真實金鑰)
+        const customFirebaseConfig = {
+             apiKey: "AIzaSyAT9VXm8gf5Pn4A1iu3xXF6X8Ve9NYlUAk",
+  authDomain: "teacherboard-9224d.firebaseapp.com",
+  projectId: "teacherboard-9224d",
+  storageBucket: "teacherboard-9224d.firebasestorage.app",
+  messagingSenderId: "801036213120",
+  appId: "1:801036213120:web:2077de68b0a74395023f65"
+        };
+
+        // 若無預設環境變數則使用上面填寫的 customFirebaseConfig
+        const firebaseConfig = (typeof __firebase_config !== 'undefined' && __firebase_config !== 'undefined')
+            ? JSON.parse(__firebase_config) 
+            : customFirebaseConfig;
+        
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'class-management-portal';
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        window.firebaseCore = { auth, db, appId, setDoc, doc, onSnapshot };
+    </script>
+
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+        
+        .card {
+            backdrop-filter: blur(12px);
+            background: rgba(255, 255, 255, 0.92);
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .card:hover {
+            transform: translateY(-6px) scale(1.02);
+            box-shadow: 0 20px 30px rgba(0, 0, 0, 0.15);
+        }
+
+        .floating-shapes {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .shape {
+            position: absolute;
+            opacity: 0.15;
+            animation: float 8s ease-in-out infinite;
+        }
+
+        .shape:nth-child(1) { top: 8%; left: 8%; animation-delay: 0s; }
+        .shape:nth-child(2) { top: 15%; right: 12%; animation-delay: 2.5s; }
+        .shape:nth-child(3) { bottom: 18%; left: 15%; animation-delay: 4.5s; }
+        .shape:nth-child(4) { bottom: 10%; right: 18%; animation-delay: 1.2s; }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-25px) rotate(15deg); }
+        }
+
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.05);
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(0,0,0,0.2);
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="text-slate-800 pb-12">
+
+    <!-- 背景裝飾動態圖案 -->
+    <div class="floating-shapes">
+        <div class="shape text-7xl">📚</div>
+        <div class="shape text-7xl">✏️</div>
+        <div class="shape text-7xl">🎨</div>
+        <div class="shape text-7xl">⭐</div>
+    </div>
+
+    <div class="relative z-10 container mx-auto px-4 pt-8">
+        
+        <!-- 頂部頁頭 -->
+        <header class="text-center mb-8">
+            <h1 class="text-4xl sm:text-5xl font-black text-white mb-3 drop-shadow-md flex items-center justify-center gap-3">
+                <span>🏫</span> 班級經營網站管理
+            </h1>
+            <p class="text-base sm:text-lg text-white/90 font-medium drop-shadow">
+                點擊卡片開啟網站或 <code class="bg-white/20 px-2 py-0.5 rounded text-white font-mono text-sm">.html</code> 檔案，所有修改將自動雲端同步！
+            </p>
+        </header>
+
+        <!-- 網站與 .html 卡片展示區域 -->
+        <main class="max-w-6xl mx-auto">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10" id="websiteGrid">
+                <!-- 動態生成的卡片將插入於此 -->
+            </div>
+
+            <!-- 操作按鈕列 -->
+            <div class="flex flex-wrap items-center justify-center gap-4 text-center">
+                <button onclick="openModal('add')" class="bg-emerald-500 hover:bg-emerald-600 text-white font-black py-3.5 px-8 rounded-2xl text-base sm:text-lg shadow-lg hover:shadow-emerald-500/30 transform hover:-translate-y-1 transition-all duration-200 flex items-center gap-2">
+                    <i class="fas fa-plus-circle"></i> ➕ 新增網頁 / .html 卡片
+                </button>
+                <button onclick="resetToDefault()" class="bg-amber-500 hover:bg-amber-600 text-white font-black py-3.5 px-8 rounded-2xl text-base sm:text-lg shadow-lg hover:shadow-amber-500/30 transform hover:-translate-y-1 transition-all duration-200 flex items-center gap-2">
+                    <i class="fas fa-undo"></i> 🔄 重置為預設
+                </button>
+            </div>
+        </main>
+    </div>
+
+    <!-- ==================== 新增 / 編輯對話框 (Modal) ==================== -->
+    <div id="websiteModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-slate-100 transform transition-all">
+            
+            <div class="flex justify-between items-center border-b border-slate-100 pb-4 mb-5">
+                <h3 id="modalTitle" class="text-xl font-black text-slate-800 flex items-center gap-2">
+                    <i class="fas fa-plus-circle text-indigo-600"></i> 新增網站 / .html 連結
+                </h3>
+                <button onclick="closeModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition flex items-center justify-center font-bold">✕</button>
+            </div>
+
+            <form id="websiteForm" onsubmit="handleFormSubmit(event)" class="space-y-4">
+                <input type="hidden" id="editIndex" value="-1">
+
+                <!-- 網站名稱 -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">名稱 *</label>
+                    <input type="text" id="siteName" required placeholder="例如：作業繳交 或 座位表" class="w-full bg-slate-50 border border-slate-200 text-sm font-bold text-slate-800 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+
+                <!-- 網址或 .html 檔名 -->
+                <div>
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider">網址 或 .html 檔名 *</label>
+                        <button type="button" onclick="appendHtmlExtension()" class="text-[11px] font-bold text-indigo-600 hover:underline">
+                            + 自動補上 .html
+                        </button>
+                    </div>
+                    <input type="text" id="siteUrl" required placeholder="例如：作業管理.html 或 https://..." class="w-full bg-slate-50 border border-slate-200 text-sm font-mono text-slate-800 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <p class="text-[11px] text-slate-400 mt-1">若填寫檔名（如 `作業管理.html`），請確保該 HTML 檔案與本首頁放在同一個資料夾中。</p>
+                </div>
+
+                <!-- 常用班級 .html 快速範本 -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">快速插入常用的 .html 檔名：</label>
+                    <div class="flex flex-wrap gap-1.5 text-xs">
+                        <button type="button" onclick="quickFillHtml('作業管理.html', '作業繳交', '📝')" class="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 font-bold rounded-lg transition">📝 作業管理.html</button>
+                        <button type="button" onclick="quickFillHtml('午休登記.html', '午休登記', '📋')" class="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 font-bold rounded-lg transition">📋 午休登記.html</button>
+                        <button type="button" onclick="quickFillHtml('訂正.html', '訂正空白', '✏️')" class="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 font-bold rounded-lg transition">✏️ 訂正.html</button>
+                        <button type="button" onclick="quickFillHtml('座位表.html', '座位表', '🪑')" class="px-2.5 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 font-bold rounded-lg transition">🪑 座位表.html</button>
+                    </div>
+                </div>
+
+                <!-- 圖示 (Emoji) -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">圖標 Emoji (或文字)</label>
+                    <div class="flex items-center gap-2">
+                        <input type="text" id="siteIcon" placeholder="📝" value="📝" class="w-full bg-slate-50 border border-slate-200 text-lg text-center font-bold text-slate-800 rounded-xl px-3.5 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div class="flex gap-2 mt-2 text-lg justify-around bg-slate-50 p-2 rounded-xl border border-slate-100">
+                        <span onclick="setEmoji('📝')" class="cursor-pointer hover:scale-125 transition">📝</span>
+                        <span onclick="setEmoji('🧹')" class="cursor-pointer hover:scale-125 transition">🧹</span>
+                        <span onclick="setEmoji('📋')" class="cursor-pointer hover:scale-125 transition">📋</span>
+                        <span onclick="setEmoji('🎲')" class="cursor-pointer hover:scale-125 transition">🎲</span>
+                        <span onclick="setEmoji('✏️')" class="cursor-pointer hover:scale-125 transition">✏️</span>
+                        <span onclick="setEmoji('📖')" class="cursor-pointer hover:scale-125 transition">📖</span>
+                        <span onclick="setEmoji('🪑')" class="cursor-pointer hover:scale-125 transition">🪑</span>
+                        <span onclick="setEmoji('⭐')" class="cursor-pointer hover:scale-125 transition">⭐</span>
+                    </div>
+                </div>
+
+                <!-- 主題顏色選擇 -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">卡片主題顏色</label>
+                    <select id="siteColor" class="w-full bg-slate-50 border border-slate-200 text-sm font-bold text-slate-800 rounded-xl px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="bg-blue-100 border-blue-300">天空藍 (Blue)</option>
+                        <option value="bg-green-100 border-green-300">翡翠綠 (Green)</option>
+                        <option value="bg-yellow-100 border-yellow-300">暖陽黃 (Yellow)</option>
+                        <option value="bg-purple-100 border-purple-300">夢幻紫 (Purple)</option>
+                        <option value="bg-pink-100 border-pink-300">草莓粉 (Pink)</option>
+                        <option value="bg-indigo-100 border-indigo-300">靛青藍 (Indigo)</option>
+                        <option value="bg-orange-100 border-orange-300">活力橘 (Orange)</option>
+                    </select>
+                </div>
+
+                <!-- 按鈕列 -->
+                <div class="flex items-center gap-3 pt-4 border-t border-slate-100">
+                    <button type="button" onclick="closeModal()" class="w-1/3 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl transition text-sm">取消</button>
+                    <button type="submit" class="w-2/3 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition shadow-md shadow-indigo-200 text-sm flex items-center justify-center gap-1.5">
+                        <i class="fas fa-save"></i> 儲存卡片
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ==================== HTML 頁面內嵌預覽視窗 (Modal Frame) ==================== -->
+    <div id="previewModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-50 flex flex-col p-2 sm:p-6 hidden">
+        <div class="bg-white rounded-3xl w-full h-full flex flex-col overflow-hidden shadow-2xl border border-white/20">
+            <div class="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <span id="previewIcon" class="text-2xl">📝</span>
+                    <div>
+                        <h3 id="previewTitle" class="font-bold text-base sm:text-lg">HTML 預覽窗口</h3>
+                        <p id="previewUrlText" class="text-xs text-slate-400 font-mono"></p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <a id="previewExternalBtn" href="#" target="_blank" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition flex items-center gap-1">
+                        <i class="fas fa-external-link-alt"></i> 新分頁開啟
+                    </a>
+                    <button onclick="closePreviewModal()" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition flex items-center justify-center font-bold">✕</button>
+                </div>
+            </div>
+            <div class="flex-1 bg-slate-100 relative">
+                <iframe id="previewIframe" src="" class="w-full h-full border-none"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 固定的班級同步金鑰 (可在此直接修改您的專屬金鑰)
+        const FIXED_SYNC_KEY = 'CLASS-301';
+
+        // 預設班級網站資料
+        const defaultWebsites = [
+            {
+                name: "作業繳交",
+                url: "https://teacherlin0303.my.canva.site/dagp9zj0a7k",
+                icon: "📝",
+                color: "bg-blue-100 border-blue-300"
+            },
+            {
+                name: "掃地工作隨機分配",
+                url: "https://teacherlin0303.my.canva.site/dagqatm6gpy",
+                icon: "🧹",
+                color: "bg-green-100 border-green-300"
+            },
+            {
+                name: "值日生和午休登記",
+                url: "https://teacherlin0303.my.canva.site/dagojeps2jg",
+                icon: "📋",
+                color: "bg-yellow-100 border-yellow-300"
+            },
+            {
+                name: "掃地工作檢查(抽號碼牌)",
+                url: "https://teacherlin0303.my.canva.site/dagnblfi1vg",
+                icon: "🎲",
+                color: "bg-purple-100 border-purple-300"
+            },
+            {
+                name: "訂正空白",
+                url: "https://teacherlin0303.my.canva.site/dagoytdke-k",
+                icon: "✏️",
+                color: "bg-pink-100 border-pink-300"
+            },
+            {
+                name: "聯絡簿",
+                url: "https://teacherlin0303.my.canva.site/dagv3evl1ms",
+                icon: "📖",
+                color: "bg-indigo-100 border-indigo-300"
+            },
+            {
+                name: "座位表",
+                url: "https://teacherlin0303.my.canva.site/dagvxktrvry",
+                icon: "🪑",
+                color: "bg-orange-100 border-orange-300"
+            }
+        ];
+
+        let websites = [];
+        let currentSyncKey = FIXED_SYNC_KEY;
+        let firestoreUnsubscribe = null;
+
+        window.addEventListener('load', async () => {
+            // 直接使用固定的班級金鑰進行自動雲端同步
+            await applySyncKey(FIXED_SYNC_KEY);
+        });
+
+        // 載入本機快取
+        function loadLocalWebsites() {
+            try {
+                const saved = localStorage.getItem('classWebsites');
+                if (saved) return JSON.parse(saved);
+            } catch (e) {
+                console.error('載入失敗:', e);
+            }
+            return [...defaultWebsites];
+        }
+
+        // 儲存本機快取
+        function saveLocalWebsites() {
+            try {
+                localStorage.setItem('classWebsites', JSON.stringify(websites));
+            } catch (e) {
+                console.error('儲存本機失敗:', e);
+            }
+        }
+
+        // 啟用雲端金鑰同步
+        async function applySyncKey(key) {
+            currentSyncKey = key || FIXED_SYNC_KEY;
+
+            // 初始化 Firebase 認證與監聽
+            if (window.firebaseCore) {
+                const { auth, db, appId, setDoc, doc, onSnapshot } = window.firebaseCore;
+
+                try {
+                    // 確保認證通過
+                    if (!auth.currentUser) {
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    }
+
+                    // 取消先前的訂閱
+                    if (firestoreUnsubscribe) firestoreUnsubscribe();
+
+                    // 訂閱特定金鑰的文件變更 (相容自訂 Firebase 與平台 Firestore 結構)
+                    const roomDocRef = doc(db, 'sync_rooms', currentSyncKey);
+
+                    firestoreUnsubscribe = onSnapshot(roomDocRef, (snapshot) => {
+                        if (snapshot.exists()) {
+                            const data = snapshot.data();
+                            if (data && Array.isArray(data.websites)) {
+                                websites = data.websites;
+                                saveLocalWebsites();
+                                renderWebsites();
+                            }
+                        } else {
+                            // 文件不存在則上傳當前資料為初始化
+                            syncToCloud();
+                        }
+                    }, (error) => {
+                        console.warn('Firestore 預設路徑監聽失敗，切換至備用路徑:', error);
+                        tryAlternativeDocRef();
+                    });
+
+                } catch (err) {
+                    console.error('Firebase Auth/Sync Error:', err);
+                    websites = loadLocalWebsites();
+                    renderWebsites();
+                }
+            } else {
+                websites = loadLocalWebsites();
+                renderWebsites();
+            }
+        }
+
+        // 備用路徑訂閱機制
+        function tryAlternativeDocRef() {
+            if (!window.firebaseCore) return;
+            const { db, appId, setDoc, doc, onSnapshot } = window.firebaseCore;
+            const altDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'sync_rooms', currentSyncKey);
+            
+            firestoreUnsubscribe = onSnapshot(altDocRef, (snapshot) => {
+                if (snapshot.exists()) {
+                    const data = snapshot.data();
+                    if (data && Array.isArray(data.websites)) {
+                        websites = data.websites;
+                        saveLocalWebsites();
+                        renderWebsites();
+                    }
+                } else {
+                    syncToCloud();
+                }
+            }, (e) => {
+                console.error('備用路徑監聽失敗，改為區域儲存:', e);
+                websites = loadLocalWebsites();
+                renderWebsites();
+            });
+        }
+
+        // 將變更推送至雲端
+        async function syncToCloud() {
+            saveLocalWebsites();
+
+            if (currentSyncKey && window.firebaseCore && window.firebaseCore.auth.currentUser) {
+                const { db, appId, setDoc, doc } = window.firebaseCore;
+                
+                try {
+                    const roomDocRef = doc(db, 'sync_rooms', currentSyncKey);
+                    await setDoc(roomDocRef, {
+                        websites: websites,
+                        updatedAt: new Date().toISOString()
+                    }, { merge: true });
+                } catch (e) {
+                    try {
+                        const altDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'sync_rooms', currentSyncKey);
+                        await setDoc(altDocRef, {
+                            websites: websites,
+                            updatedAt: new Date().toISOString()
+                        }, { merge: true });
+                    } catch (err) {
+                        console.error('雲端儲存失敗:', err);
+                    }
+                }
+            }
+        }
+
+        // 渲染網站與 HTML 卡片
+        function renderWebsites() {
+            const grid = document.getElementById('websiteGrid');
+            if (!grid) return;
+            grid.innerHTML = '';
+
+            websites.forEach((website, index) => {
+                const card = document.createElement('div');
+                const isLocalHtml = website.url.toLowerCase().endsWith('.html');
+
+                card.className = `card ${website.color || 'bg-blue-100 border-blue-300'} border-2 rounded-2xl p-6 cursor-pointer relative group flex flex-col justify-between min-h-[170px] shadow-sm`;
+
+                card.innerHTML = `
+                    <div class="text-center">
+                        <div class="text-5xl mb-3 transform group-hover:scale-110 transition-transform duration-200">${website.icon || '📝'}</div>
+                        <h3 class="text-xl font-black text-slate-800 mb-1 tracking-tight">${escapeHtml(website.name)}</h3>
+                        
+                        <div class="flex items-center justify-center gap-1 mt-1">
+                            ${isLocalHtml ? `
+                                <span class="bg-indigo-600 text-white text-[10px] font-mono px-2 py-0.5 rounded-md font-bold">
+                                    .html 檔案
+                                </span>
+                            ` : ''}
+                            <span class="text-xs text-slate-500 font-medium truncate max-w-[200px]">
+                                ${escapeHtml(website.url)}
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- 操作按鈕區 -->
+                    <div class="mt-4 pt-3 border-t border-slate-900/10 flex items-center justify-between gap-2">
+                        <button onclick="openWebsite('${escapeHtml(website.url)}')" class="flex-1 py-1.5 px-3 bg-white/80 hover:bg-white text-slate-700 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1 shadow-sm">
+                            <i class="fas fa-external-link-alt"></i> 開啟
+                        </button>
+                        <button onclick="previewWebsite(${index})" class="py-1.5 px-3 bg-white/80 hover:bg-white text-indigo-700 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1 shadow-sm">
+                            <i class="fas fa-eye"></i> 預覽
+                        </button>
+                        <button onclick="openModal('edit', ${index})" class="p-1.5 bg-white/80 hover:bg-amber-100 text-amber-700 font-bold text-xs rounded-xl transition shadow-sm">
+                            <i class="fas fa-pen"></i>
+                        </button>
+                        <button onclick="deleteWebsite(${index})" class="p-1.5 bg-white/80 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl transition shadow-sm">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </div>
+                `;
+
+                // 右鍵開啟編輯對話框
+                card.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    openModal('edit', index);
+                });
+
+                grid.appendChild(card);
+            });
+        }
+
+        // 開啟網站
+        function openWebsite(url) {
+            window.open(url, '_blank');
+        }
+
+        // 預覽網站或 HTML
+        function previewWebsite(index) {
+            const site = websites[index];
+            if (!site) return;
+
+            document.getElementById('previewIcon').textContent = site.icon || '📝';
+            document.getElementById('previewTitle').textContent = site.name;
+            document.getElementById('previewUrlText').textContent = site.url;
+            document.getElementById('previewExternalBtn').href = site.url;
+
+            const iframe = document.getElementById('previewIframe');
+            iframe.src = site.url;
+
+            document.getElementById('previewModal').classList.remove('hidden');
+        }
+
+        function closePreviewModal() {
+            document.getElementById('previewIframe').src = '';
+            document.getElementById('previewModal').classList.add('hidden');
+        }
+
+        // Modal 控制邏輯
+        function openModal(type, index = -1) {
+            const modal = document.getElementById('websiteModal');
+            const title = document.getElementById('modalTitle');
+
+            if (type === 'edit' && index >= 0) {
+                const site = websites[index];
+                title.innerHTML = '<i class="fas fa-pen text-amber-500"></i> 編輯網站 / 卡片';
+                document.getElementById('editIndex').value = index;
+                document.getElementById('siteName').value = site.name;
+                document.getElementById('siteUrl').value = site.url;
+                document.getElementById('siteIcon').value = site.icon || '📝';
+                document.getElementById('siteColor').value = site.color || 'bg-blue-100 border-blue-300';
+            } else {
+                title.innerHTML = '<i class="fas fa-plus-circle text-indigo-600"></i> 新增網站 / .html 連結';
+                document.getElementById('editIndex').value = -1;
+                document.getElementById('siteName').value = '';
+                document.getElementById('siteUrl').value = '';
+                document.getElementById('siteIcon').value = '📝';
+                document.getElementById('siteColor').value = 'bg-blue-100 border-blue-300';
+            }
+
+            modal.classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('websiteModal').classList.add('hidden');
+        }
+
+        function setEmoji(emoji) {
+            document.getElementById('siteIcon').value = emoji;
+        }
+
+        function appendHtmlExtension() {
+            const input = document.getElementById('siteUrl');
+            let val = input.value.trim();
+            if (val && !val.toLowerCase().endsWith('.html') && !val.startsWith('http')) {
+                input.value = val + '.html';
+            }
+        }
+
+        function quickFillHtml(filename, defaultName, emoji) {
+            document.getElementById('siteUrl').value = filename;
+            if (!document.getElementById('siteName').value) {
+                document.getElementById('siteName').value = defaultName;
+            }
+            if (emoji) {
+                document.getElementById('siteIcon').value = emoji;
+            }
+        }
+
+        // 提交表單
+        async function handleFormSubmit(e) {
+            e.preventDefault();
+
+            const index = parseInt(document.getElementById('editIndex').value);
+            const name = document.getElementById('siteName').value.trim();
+            let url = document.getElementById('siteUrl').value.trim();
+            const icon = document.getElementById('siteIcon').value.trim() || '📝';
+            const color = document.getElementById('siteColor').value;
+
+            if (!name || !url) {
+                showToast('請完整填寫名稱與網址！');
+                return;
+            }
+
+            const newSite = { name, url, icon, color };
+
+            if (index >= 0) {
+                websites[index] = newSite;
+            } else {
+                websites.push(newSite);
+            }
+
+            closeModal();
+            renderWebsites();
+            await syncToCloud();
+            showToast(index >= 0 ? '已儲存修改！' : '已成功新增卡片！');
+        }
+
+        // 刪除網站
+        async function deleteWebsite(index) {
+            if (confirm(`確定要刪除「${websites[index].name}」嗎？`)) {
+                websites.splice(index, 1);
+                renderWebsites();
+                await syncToCloud();
+                showToast('已刪除卡片');
+            }
+        }
+
+        // 重置為預設值
+        async function resetToDefault() {
+            if (confirm('確定要將所有網站重置為初始預設值嗎？這將覆蓋目前的卡片選單。')) {
+                websites = [...defaultWebsites];
+                renderWebsites();
+                await syncToCloud();
+                showToast('已重置為預設資料');
+            }
+        }
+
+        // 工具函式：HTML 轉義
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // Toast 訊息提示
+        function showToast(msg) {
+            const toast = document.createElement('div');
+            toast.className = 'fixed bottom-6 right-6 bg-slate-900 text-white font-bold text-sm px-5 py-3 rounded-2xl shadow-2xl z-50 animate-bounce flex items-center gap-2';
+            toast.innerHTML = `<i class="fas fa-info-circle text-indigo-400"></i> ${escapeHtml(msg)}`;
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                toast.remove();
+            }, 2500);
+        }
+    </script>
+</body>
+</html>

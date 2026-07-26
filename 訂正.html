@@ -1,0 +1,449 @@
+﻿<!doctype html>
+<html lang="zh-TW">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>座號訂正系統</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+  <style>
+        body {font-family:'Microsoft JhengHei',sans-serif;background-color:#f0f4f8;box-sizing:border-box}
+        .number-grid {display:grid;grid-template-columns:repeat(8,1fr);gap:8px}
+        .number-item {display:flex;align-items:center;justify-content:center;height:40px;background-color:#e2e8f0;border-radius:8px;cursor:pointer;transition:all 0.2s;user-select:none;font-weight:bold}
+        .number-item:hover {background-color:#cbd5e1}
+        .number-item.state1 {background-color:#3b82f6;color:white}
+        .number-item.state2 {background-color:#fbbf24;color:black}
+        .frame {border-radius:12px;box-shadow:0 4px 6px rgba(0,0,0,0.1);padding:16px;margin-bottom:20px}
+        #frame-0 {background-color:#ffedd5}
+        #frame-1 {background-color:#dcfce7}
+        #frame-2 {background-color:#dbeafe}
+        #frame-3 {background-color:#fae8ff}
+        #frame-4 {background-color:#fee2e2}
+        #frame-5 {background-color:#e0f2fe}
+        .time-display {background-color:#3b82f6;color:white;padding:8px 16px;border-radius:12px;font-weight:bold;font-size:24px;white-space:nowrap;text-align:center}
+        .notification {position:fixed;bottom:1rem;right:1rem;padding:0.75rem 1.5rem;border-radius:0.5rem;box-shadow:0 4px 6px rgba(0,0,0,0.1);background-color:#10b981;color:white;z-index:1000;display:none}
+        .share-dialog {position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background-color:white;padding:20px;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,0.2);z-index:1001;width:90%;max-width:500px;display:none}
+        .overlay {position:fixed;top:0;left:0;right:0;bottom:0;background-color:rgba(0,0,0,0.5);z-index:1000;display:none}
+        .title-selector {background-color:#f1f5f9;border-radius:10px;padding:16px;margin-bottom:20px;box-shadow:0 2px 4px rgba(0,0,0,0.05);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
+        .title-chips-container {display:flex;flex-wrap:wrap;gap:8px;align-items:center;flex:1}
+        .title-chip {background-color:#3b82f6;color:white;padding:10px 16px;border-radius:8px;cursor:pointer;user-select:none;transition:all 0.2s;font-weight:500;font-size:18px;white-space:nowrap}
+        .title-chip:hover {background-color:#2563eb;transform:translateY(-2px);box-shadow:0 2px 4px rgba(0,0,0,0.1)}
+        .title-chip.dragging {opacity:0.5}
+        .frame-header {display:flex;align-items:center;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+        .frame-title-input {width:150px;font-size:32px;font-weight:bold;padding:6px 8px;border:2px solid rgba(0,0,0,0.1);border-radius:6px;background-color:rgba(255,255,255,0.9)}
+        .frame-button {padding:6px 10px;font-size:12px;border:none;border-radius:6px;cursor:pointer;transition:all 0.2s;white-space:nowrap}
+        .frame-button-select {background-color:#3b82f6;color:white}
+        .frame-button-select:hover {background-color:#2563eb}
+        .frame-button-deselect {background-color:#6b7280;color:white}
+        .frame-button-deselect:hover {background-color:#4b5563}
+        .add-title-inline {display:flex;align-items:center;gap:8px}
+        .add-title-input {font-size:16px;padding:8px 12px;border:2px solid #fbbf24;border-radius:6px;width:140px}
+        .add-title-btn {font-size:14px;padding:8px 12px;background-color:#f59e0b;color:white;border:none;border-radius:6px;cursor:pointer;transition:all 0.2s;white-space:nowrap}
+        .add-title-btn:hover {background-color:#d97706}
+        .frames-container {position:relative}
+        .center-time-wrapper {display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:10}
+        .sync-status {font-size: 14px; padding: 4px 10px; border-radius: 20px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;}
+        .sync-online {background-color: #d1fae5; color: #065f46;}
+        .sync-offline {background-color: #fee2e2; color: #991b1b;}
+        @media (min-width:768px) {.center-time-wrapper {display:block}}
+    </style>
+ </head>
+ <body class="p-4 md:p-6">
+  <div class="max-w-7xl mx-auto">
+   <div class="title-selector mb-8">
+    <div class="title-chips-container" id="titleChipsContainer"></div>
+    <div class="add-title-inline">
+        <span id="syncStatus" class="sync-status sync-offline">雲端連線中...</span>
+        <button onclick="shareLink()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-sm font-bold transition-all">分享房間</button>
+        <input type="text" id="customTitleInput" class="add-title-input" placeholder="新增標題..."> 
+        <button onclick="addCustomTitle()" class="add-title-btn">新增</button>
+    </div>
+   </div>
+   <div class="frames-container">
+    <div class="center-time-wrapper">
+     <div id="centerTimeDisplay" class="time-display"></div>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6" id="frames-grid"></div>
+   </div>
+  </div>
+  
+  <div id="notification" class="notification"></div>
+  <div id="overlay" class="overlay" onclick="hideShareDialog()"></div>
+  <div id="shareDialog" class="share-dialog">
+   <h3 class="text-xl font-bold mb-4">分享同步房間連結</h3>
+   <p class="mb-2">將此連結發送給其他裝置，即可進行即時雲端同步訂正：</p>
+   <div class="flex mb-4">
+    <input id="shareUrl" type="text" class="flex-grow border rounded-l px-3 py-2" readonly> 
+    <button onclick="copyShareUrl()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-r">複製</button>
+   </div>
+   <div class="text-right">
+    <button onclick="hideShareDialog()" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded">關閉</button>
+   </div>
+  </div>
+
+  <script>
+        // --- Firebase 配置與初始化 ---
+        // 請將下方 firebaseConfig 替換為你的 Firebase 專案設定
+        const firebaseConfig = {
+             apiKey: "AIzaSyAT9VXm8gf5Pn4A1iu3xXF6X8Ve9NYlUAk",
+  authDomain: "teacherboard-9224d.firebaseapp.com",
+  projectId: "teacherboard-9224d",
+  storageBucket: "teacherboard-9224d.firebasestorage.app",
+  messagingSenderId: "801036213120",
+  appId: "1:801036213120:web:2077de68b0a74395023f65"
+        };
+
+        let db = null;
+        let roomRef = null;
+        let isCloudConnected = false;
+        let roomId = 'default_room';
+
+        // 初始化 Firebase
+        try {
+            if (!firebase.apps.length) {
+                firebase.initializeApp(firebaseConfig);
+            }
+            db = firebase.firestore();
+        } catch (e) {
+            console.warn("Firebase 未完整設定，系統將切換至本地離線模式。");
+        }
+
+        const FRAMES_COUNT = 6;
+        // 儲存每個框中號碼的狀態 { number: state (0/1/2) }
+        let numberStates = Array(FRAMES_COUNT).fill().map(() => ({}));
+        let correctionTitles = Array(FRAMES_COUNT).fill('');
+        let defaultTitles = ['生字','圈短','短造','國習','數習','數作','數卷','國卷','聯絡簿','刷牙擦桌子','聽考','社習','作文','週記','數八','英單','數課','國練','數練'];
+        
+        const validNumbers = [1,2,3,4,5,6,7,8,9,11,12,13,14,15,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35];
+
+        window.onload = function(){
+            parseRoomId();
+            createFrames();
+            createNumberGrids();
+            createTitleChips();
+            setupDragAndDrop();
+            updateClock();
+            setInterval(updateClock, 1000);
+            
+            initCloudSync();
+            document.getElementById('customTitleInput').addEventListener('keypress', e => {
+                if(e.key === 'Enter') addCustomTitle();
+            });
+        };
+
+        function parseRoomId() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const room = urlParams.get('room');
+            if (room) {
+                roomId = room;
+            }
+        }
+
+        // 初始化 Firebase Firestore 即時同步監聽
+        function initCloudSync() {
+            const statusEl = document.getElementById('syncStatus');
+            if (!db) {
+                if (statusEl) {
+                    statusEl.textContent = '離線模式';
+                    statusEl.className = 'sync-status sync-offline';
+                }
+                loadLocalSavedData();
+                return;
+            }
+
+            roomRef = db.collection('corrections').doc(roomId);
+
+            roomRef.onSnapshot((doc) => {
+                isCloudConnected = true;
+                if (statusEl) {
+                    statusEl.textContent = `雲端同步中 (${roomId})`;
+                    statusEl.className = 'sync-status sync-online';
+                }
+
+                if (doc.exists) {
+                    const data = doc.data();
+                    if (data.numberStates) numberStates = data.numberStates;
+                    if (data.correctionTitles) correctionTitles = data.correctionTitles;
+                    if (data.customTitles && Array.isArray(data.customTitles)) {
+                        defaultTitles = data.customTitles;
+                        createTitleChips();
+                    }
+                    updateUI();
+                } else {
+                    saveData(); // 初始化雲端資料
+                }
+            }, (error) => {
+                console.error("Firestore 同步失敗:", error);
+                isCloudConnected = false;
+                if (statusEl) {
+                    statusEl.textContent = '雲端連線失敗 (使用離線備份)';
+                    statusEl.className = 'sync-status sync-offline';
+                }
+                loadLocalSavedData();
+            });
+        }
+        
+        function createFrames(){
+            const grid = document.getElementById('frames-grid');
+            grid.innerHTML = '';
+            for(let i = 0; i < FRAMES_COUNT; i++){
+                const frame = document.createElement('div');
+                frame.id = `frame-${i}`;
+                frame.className = 'frame';
+                frame.innerHTML = `
+                    <div class="frame-header">
+                        <input type="text" class="frame-title-input" placeholder="訂正項目" data-frame-index="${i}">
+                        <button onclick="selectAll(${i})" class="frame-button frame-button-select">全選</button>
+                        <button onclick="deselectAll(${i})" class="frame-button frame-button-deselect">取消</button>
+                    </div>
+                    <div class="number-grid" id="grid-${i}"></div>
+                `;
+                frame.querySelector('.frame-title-input').oninput = e => updateTitle(i, e.target.value);
+                grid.appendChild(frame);
+            }
+        }
+        
+        function createNumberGrids(){
+            for(let f = 0; f < FRAMES_COUNT; f++){
+                const grid = document.getElementById(`grid-${f}`);
+                grid.innerHTML = '';
+                validNumbers.forEach(i => {
+                    const item = document.createElement('div');
+                    item.className = 'number-item';
+                    item.textContent = i;
+                    item.dataset.number = i;
+                    item.dataset.frame = f;
+                    item.dataset.state = '0';
+                    item.onclick = () => toggleNumber(item);
+                    grid.appendChild(item);
+                });
+            }
+        }
+        
+        function createTitleChips(){
+            const container = document.getElementById('titleChipsContainer');
+            container.innerHTML = '';
+            defaultTitles.forEach((title, index) => {
+                const chip = document.createElement('div');
+                chip.className = 'title-chip';
+                chip.textContent = title;
+                chip.draggable = true;
+                chip.dataset.index = index;
+                chip.addEventListener('click', () => {
+                    const input = document.querySelector('.frame-title-input:focus') || document.querySelector('.frame-title-input');
+                    if(input){
+                        const f = parseInt(input.dataset.frameIndex);
+                        input.value = title;
+                        updateTitle(f, title);
+                        showNotification(`已設定第 ${f+1} 框標題為「${title}」`);
+                    }
+                });
+                chip.addEventListener('contextmenu', e => {
+                    e.preventDefault();
+                    if(index >= 17){
+                        if(confirm(`確定要刪除標題「${title}」嗎？`)){
+                            defaultTitles.splice(index, 1);
+                            createTitleChips();
+                            saveCustomTitles();
+                            showNotification(`已刪除標題「${title}」`);
+                        }
+                    } else showNotification('無法刪除系統預設標題');
+                });
+                chip.addEventListener('dragstart', e => {
+                    e.dataTransfer.setData('text/plain', title);
+                    chip.classList.add('dragging');
+                });
+                chip.addEventListener('dragend', () => chip.classList.remove('dragging'));
+                container.appendChild(chip);
+            });
+        }
+        
+        function setupDragAndDrop(){
+            document.querySelectorAll('.frame-title-input').forEach(input => {
+                input.addEventListener('dragenter', e => { e.preventDefault(); input.classList.add('drag-over'); });
+                input.addEventListener('dragover', e => e.preventDefault());
+                input.addEventListener('dragleave', () => input.classList.remove('drag-over'));
+                input.addEventListener('drop', e => {
+                    e.preventDefault();
+                    input.classList.remove('drag-over');
+                    const title = e.dataTransfer.getData('text/plain');
+                    const f = parseInt(input.dataset.frameIndex);
+                    input.value = title;
+                    updateTitle(f, title);
+                    showNotification(`已設定第 ${f+1} 框標題為「${title}」`);
+                });
+            });
+        }
+        
+        function toggleNumber(el){
+            const f = parseInt(el.dataset.frame);
+            const n = parseInt(el.dataset.number);
+            let state = parseInt(el.dataset.state) || 0;
+            state = (state + 1) % 3;
+            
+            if (!numberStates[f]) numberStates[f] = {};
+            numberStates[f][n] = state;
+
+            applyNumberStateUI(el, state);
+            saveData();
+        }
+
+        function applyNumberStateUI(el, state) {
+            el.dataset.state = state;
+            el.classList.remove('state1', 'state2');
+            if (state === 1) {
+                el.classList.add('state1');
+            } else if (state === 2) {
+                el.classList.add('state2');
+            }
+        }
+        
+        function selectAll(f){
+            if (!numberStates[f]) numberStates[f] = {};
+            validNumbers.forEach(n => {
+                numberStates[f][n] = 1;
+            });
+            updateUI();
+            saveData();
+            showNotification(`已全選第 ${f+1} 框號碼`);
+        }
+        
+        function deselectAll(f){
+            if (!numberStates[f]) numberStates[f] = {};
+            validNumbers.forEach(n => {
+                numberStates[f][n] = 0;
+            });
+            updateUI();
+            saveData();
+            showNotification(`已取消第 ${f+1} 框所有選擇`);
+        }
+        
+        function updateTitle(f, v){
+            correctionTitles[f] = v;
+            saveData();
+        }
+        
+        function updateClock(){
+            const d = new Date();
+            const t = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+            const el = document.getElementById('centerTimeDisplay');
+            if(el) el.textContent = t;
+        }
+        
+        function saveData(){
+            document.querySelectorAll('.frame-title-input').forEach((input, i) => {
+                correctionTitles[i] = input.value;
+            });
+            
+            const payload = {
+                numberStates: numberStates,
+                correctionTitles: correctionTitles,
+                customTitles: defaultTitles,
+                updatedAt: firebase.firestore.FieldValue ? firebase.firestore.FieldValue.serverTimestamp() : Date.now()
+            };
+
+            // 本地儲存備份
+            localStorage.setItem('correctionData_' + roomId, JSON.stringify({
+                numberStates,
+                correctionTitles,
+                timestamp: Date.now()
+            }));
+
+            // 雲端即時同步
+            if (roomRef && isCloudConnected) {
+                roomRef.set(payload, { merge: true }).catch(err => console.error("雲端寫入失敗:", err));
+            }
+        }
+        
+        function addCustomTitle(){
+            const input = document.getElementById('customTitleInput');
+            const t = input.value.trim();
+            if(!t){ showNotification('請輸入標題名稱'); return; }
+            if(defaultTitles.includes(t)){ showNotification('此標題已存在'); input.value = ''; return; }
+            defaultTitles.push(t);
+            input.value = '';
+            createTitleChips();
+            saveCustomTitles();
+            saveData();
+            showNotification(`已新增標題「${t}」`);
+        }
+        
+        function saveCustomTitles(){
+            localStorage.setItem('customTitles', JSON.stringify(defaultTitles));
+        }
+        
+        function loadCustomTitles(){
+            const s = localStorage.getItem('customTitles');
+            if(s) try{ defaultTitles = JSON.parse(s); }catch(e){ console.error('無法解析自訂標題', e); }
+        }
+        
+        function shareLink(){
+            const currentUrl = window.location.href.split('?')[0];
+            const shareUrl = `${currentUrl}?room=${roomId}`;
+            document.getElementById('shareUrl').value = shareUrl;
+            document.getElementById('overlay').style.display = 'block';
+            document.getElementById('shareDialog').style.display = 'block';
+        }
+        
+        function hideShareDialog(){
+            document.getElementById('overlay').style.display = 'none';
+            document.getElementById('shareDialog').style.display = 'none';
+        }
+        
+        function copyShareUrl(){
+            const input = document.getElementById('shareUrl');
+            input.select();
+            try {
+                document.execCommand('copy');
+                showNotification('連結已複製到剪貼簿');
+            } catch(e) {
+                navigator.clipboard.writeText(input.value)
+                    .then(() => showNotification('連結已複製到剪貼簿'))
+                    .catch(() => alert('無法複製連結'));
+            }
+        }
+        
+        function loadLocalSavedData(){
+            loadCustomTitles();
+            const s = localStorage.getItem('correctionData_' + roomId);
+            if(s) try {
+                const d = JSON.parse(s);
+                numberStates = d.numberStates || Array(FRAMES_COUNT).fill().map(() => ({}));
+                correctionTitles = d.correctionTitles || Array(FRAMES_COUNT).fill('');
+                updateUI();
+            } catch(e) {
+                console.error('無法解析本地存儲數據', e);
+            }
+        }
+        
+        function updateUI(){
+            // 更新標題輸入框 (避免覆蓋當前輸入焦點)
+            document.querySelectorAll('.frame-title-input').forEach((input, i) => {
+                if (document.activeElement !== input) {
+                    input.value = correctionTitles[i] || '';
+                }
+            });
+
+            // 更新座號格子狀態
+            for(let f = 0; f < FRAMES_COUNT; f++){
+                document.querySelectorAll(`#grid-${f} .number-item`).forEach(item => {
+                    const n = parseInt(item.dataset.number);
+                    const state = (numberStates[f] && numberStates[f][n]) ? numberStates[f][n] : 0;
+                    applyNumberStateUI(item, state);
+                });
+            }
+        }
+        
+        function showNotification(m){
+            const n = document.getElementById('notification');
+            n.textContent = m;
+            n.style.display = 'block';
+            setTimeout(() => n.style.display = 'none', 3000);
+        }
+    </script>
+ </body>
+</html>

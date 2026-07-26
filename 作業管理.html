@@ -1,0 +1,305 @@
+﻿<!doctype html>
+<html lang="zh-TW">
+ <head><script>window["__codeletBootstrap__"]=JSON.parse('{"A":"A","B":"20260723-05-e9a76f4"}');</script><script src="/_sdk/e358eac22bd01364.telemetry_sdk.js" integrity="sha512-KPxp3rw4K8Nu9ceWJc3gyM7srgaZxiFWOVbyu260EYzzAqdz10mfo5xyXrCx+wEKtGo77JbtmwXvFLbwrGzwvw=="></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>班級作業繳交紀錄簿</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&amp;family=Zen+Maru+Gothic:wght@700;900&amp;display=swap" rel="stylesheet">
+  
+  <!-- Firebase SDKs (Compat) -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+  <style>
+    :root{--ink:#1e293b;--indigo:#4f46e5}
+    *{box-sizing:border-box}html{color-scheme:light}
+    body{width:100%;min-width:0;margin:0;color:var(--ink);font-family:"Noto Sans TC",sans-serif;background-color:#f7f5ef;background-image:radial-gradient(#e5e0d8 1.1px,transparent 1.1px);background-size:22px 22px}
+    button,input{font:inherit}button{touch-action:manipulation}.cute-font{font-family:"Zen Maru Gothic",sans-serif}
+    button:focus-visible,input:focus-visible{outline:3px solid #4f46e552;outline-offset:2px}
+    .compact-toolbar{background:#fffffff2;box-shadow:0 8px 22px -16px #0f172a61;backdrop-filter:blur(10px)}
+    .quick-chip,.selected-tag{display:inline-flex;height:25px;flex:0 0 auto;align-items:center;font-size:11px;font-weight:700}
+    .quick-chip{gap:3px;border:1px solid #e2e8f0;border-radius:9px;padding:0 8px;color:#475569;background:#f8fafc;transition:.14s}
+    .quick-chip:hover{color:#4338ca;background:#eef2ff}.quick-chip:active{transform:scale(.96)}
+    .quick-chip.is-active{border-color:#a5b4fc;color:#3730a3;background:#e0e7ff}
+    .selected-tag{gap:4px;border-radius:8px;padding:0 4px 0 8px;color:#fff;background:var(--indigo);box-shadow:0 2px 5px #4f46e52e}
+    .selected-tag button{display:grid;width:18px;height:18px;place-items:center;border-radius:5px;line-height:1}.selected-tag button:hover{background:#4338ca}
+    .student-card{position:relative;display:flex;width:100%;min-height:76px;cursor:pointer;flex-direction:column;justify-content:space-between;overflow:visible;border:2px solid #e2e8f0;border-radius:13px;padding:9px;background:#fff;text-align:left;box-shadow:0 4px 9px #0f172a0e;transition:transform .17s cubic-bezier(.34,1.56,.64,1),box-shadow .17s,border-color .17s;animation:card-in .33s both}
+    .student-card:hover{z-index:2;transform:translateY(-3px);border-color:#c7d2fe;box-shadow:0 12px 24px -12px #0f172a4d}
+    .student-card.incomplete{border-color:#fca5a5;background:#fff7f7;box-shadow:0 5px 14px #ef44441f}
+    .cell-tape{position:absolute;top:-6px;left:50%;width:31px;height:9px;transform:translateX(-50%) rotate(-1deg);border-radius:2px;background:#fbbf24a1}
+    .modal-panel{animation:modal-in .18s ease-out both}.toast{transition:opacity .18s,transform .18s}
+    .toast.is-visible{pointer-events:auto;opacity:1;transform:translate(-50%,0)}
+    @keyframes card-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+    @keyframes modal-in{from{opacity:0;transform:scale(.97) translateY(6px)}to{opacity:1;transform:none}}
+    @media(max-width:639px){.student-card{min-height:72px}}
+    @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+    ::-webkit-scrollbar{width:7px;height:7px}::-webkit-scrollbar-track{background:#f1f5f9}::-webkit-scrollbar-thumb{border-radius:8px;background:#cbd5e1}
+  </style>
+  <script src="/_sdk/935a53bc2e11fb8d.data_sdk.js" type="text/javascript" integrity="sha512-qr2oyPnEys1WebcOABaRh6hG77r5PWpqeWW6JTKbRJqly/INsfBi31CVNlTmHqjgeLpkVmmHZJUdxSx/32tOFQ=="></script>
+  <script src="/_sdk/6030e540d4419216.resizing_sdk.js" type="text/javascript" integrity="sha512-b5KWzyoXsbWP4smq4sftIi6Kts4YVBpBsz0BwCViwbBJkK64a3/Z6ZMdWA+qnplNcXw4mhZeqvQi3mOosiRJdA=="></script>
+ </head>
+ <body data-template-id="__page-root" class="min-h-screen pb-4">
+  <div class="w-full px-2.5 py-2.5 sm:px-4">
+   <div class="mx-auto w-full max-w-7xl">
+    <main>
+     <section aria-labelledby="controls-heading" class="mb-2.5">
+      <h1 id="controls-heading" data-template-id="compact-title" class="canva-text sr-only"></h1>
+      <div data-template-id="compact-toolbar" class="canva-panel compact-toolbar rounded-2xl border border-slate-200 p-2.5">
+       <div class="flex flex-col gap-2">
+        <div class="flex flex-wrap items-center gap-2">
+         <div class="flex shrink-0 items-center gap-1"><label data-template-id="date-label" for="homework-date" class="canva-text sr-only"></label> <button id="previous-date-button" type="button" aria-label="前一天" class="grid h-8 w-8 place-items-center rounded-lg bg-slate-100 text-slate-600 transition hover:bg-slate-200 active:scale-95"><i data-lucide="chevron-left" class="h-4 w-4" aria-hidden="true"></i></button> <input id="homework-date" type="date" class="h-8 w-[132px] rounded-lg border border-slate-300 bg-slate-50 px-2 text-xs font-bold text-slate-800 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"> <span id="weekday-label" class="min-w-8 text-center text-[11px] font-bold text-indigo-600" aria-live="polite"></span> <button id="next-date-button" type="button" aria-label="後一天" class="grid h-8 w-8 place-items-center rounded-lg bg-slate-100 text-slate-600 transition hover:bg-slate-200 active:scale-95"><i data-lucide="chevron-right" class="h-4 w-4" aria-hidden="true"></i></button> <button id="today-button" data-template-id="today-button" type="button" class="canva-button h-8 shrink-0 rounded-lg px-2.5 font-bold transition active:scale-95"></button>
+         </div>
+         <div class="hidden h-6 w-px bg-slate-200 sm:block" aria-hidden="true"></div>
+         <form id="custom-homework-form" class="flex min-w-[230px] flex-1 items-center gap-1.5"><label data-template-id="custom-homework-label" for="new-hw-type" class="canva-text sr-only"></label> <input id="new-hw-type" data-template-id="custom-homework-input" type="text" maxlength="30" autocomplete="off" class="canva-input h-8 min-w-0 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 font-medium focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"> <button data-template-id="add-homework-button" type="submit" class="canva-button flex h-8 shrink-0 items-center gap-1 rounded-lg px-2.5 font-bold transition hover:brightness-95 active:scale-95"><i data-lucide="plus" class="h-3.5 w-3.5" aria-hidden="true"></i><span></span></button>
+         </form>
+         <div data-template-id="missing-badge" class="canva-tag flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-2.5"><i data-lucide="circle-alert" class="h-4 w-4" aria-hidden="true"></i> <span data-template-id="missing-badge-label" class="canva-text"></span> <strong id="pending-count-badge" class="cute-font text-base" aria-live="polite">0</strong>
+         </div>
+        </div>
+        <div class="flex min-w-0 items-start gap-1.5"><span data-template-id="quick-label" class="canva-text shrink-0"></span>
+         <div id="default-chips" class="flex min-w-0 flex-1 flex-wrap gap-1" aria-label="常用作業項目"></div>
+        </div>
+        <div class="flex min-w-0 items-center gap-1.5 border-t border-slate-100 pt-1.5"><span data-template-id="active-items-label" class="canva-text shrink-0"></span>
+         <div id="active-hw-types" class="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto pb-0.5"><span data-template-id="no-homework-message" class="canva-text whitespace-nowrap italic"></span>
+         </div><span id="item-count-label" class="shrink-0 rounded-md bg-indigo-50 px-1.5 py-1 text-[10px] font-bold text-indigo-600" aria-live="polite">0 項</span>
+        </div>
+       </div>
+      </div>
+     </section>
+     <section aria-labelledby="student-grid-title">
+      <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+       <div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+        <h2 id="student-grid-title" data-template-id="student-grid-title" class="canva-text cute-font font-black"></h2><span data-template-id="student-grid-help" class="canva-text"></span>
+        <div id="missing-students-summary" data-template-id="missing-students-summary" class="canva-banner min-w-0 rounded-lg border px-2 py-1" aria-live="polite"></div>
+       </div>
+       <div class="flex shrink-0 items-center gap-1.5"><button id="clear-all-button" data-template-id="clear-all-button" type="button" class="canva-button flex h-8 items-center gap-1 rounded-lg border px-2.5 font-bold transition hover:brightness-95"><i data-lucide="check-check" class="h-3.5 w-3.5" aria-hidden="true"></i><span></span></button> <button id="copy-summary-button" data-template-id="copy-summary-button" type="button" class="canva-button flex h-8 items-center gap-1 rounded-lg border px-2.5 font-bold transition hover:brightness-95"><i data-lucide="copy" class="h-3.5 w-3.5" aria-hidden="true"></i><span></span></button>
+       </div>
+      </div>
+      <div id="homework-grid" class="grid grid-cols-3 gap-2 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9" aria-label="1 至 35 號學生作業狀態"></div>
+     </section>
+    </main>
+    <footer class="mt-4 border-t border-slate-200/70 py-2 text-center">
+     <p data-template-id="footer-note" class="canva-text"></p>
+    </footer>
+   </div>
+  </div>
+  <div id="student-modal-overlay" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/45 p-3 backdrop-blur-sm" role="presentation">
+   <section class="modal-panel max-h-[calc(92*min(var(--vh,1vh),1vh))] w-full max-w-sm overflow-y-auto rounded-2xl border border-white bg-white p-3.5 shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="student-modal-heading">
+    <header class="mb-2.5 flex items-start justify-between border-b border-slate-100 pb-2.5">
+     <div class="flex min-w-0 items-center gap-2.5">
+      <div class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-amber-500 text-white shadow-md shadow-amber-200">
+       <span id="modal-student-number" class="cute-font text-xl font-black">01</span>
+      </div>
+      <div class="min-w-0">
+       <h2 id="student-modal-heading" data-template-id="modal-title" class="canva-text cute-font font-black"></h2>
+       <p data-template-id="modal-help" class="canva-text mt-0.5"></p>
+      </div>
+     </div><button id="modal-x-button" data-template-id="modal-x-button" type="button" aria-label="關閉學生作業登記" class="canva-button grid h-8 w-8 shrink-0 place-items-center rounded-full transition hover:brightness-95"></button>
+    </header>
+    <div class="mb-2 grid grid-cols-2 gap-1.5"><button id="student-all-complete-button" data-template-id="student-all-complete-button" type="button" class="canva-button flex h-9 items-center justify-center gap-1 rounded-lg border px-2 font-bold transition hover:brightness-95"><i data-lucide="circle-check" class="h-4 w-4" aria-hidden="true"></i><span data-template-id="student-all-complete-label" class="canva-text"></span></button> <button id="student-all-missing-button" data-template-id="student-all-missing-button" type="button" class="canva-button flex h-9 items-center justify-center gap-1 rounded-lg border px-2 font-bold transition hover:brightness-95"><i data-lucide="circle-x" class="h-4 w-4" aria-hidden="true"></i><span data-template-id="student-all-missing-label" class="canva-text"></span></button>
+    </div>
+    <div id="student-homework-empty" data-template-id="student-homework-empty" class="canva-banner hidden rounded-xl border border-amber-200 px-3 py-5 text-center"></div>
+    <div id="student-homework-list" class="mb-2.5 max-h-[calc(48*min(var(--vh,1vh),1vh))] space-y-1.5 overflow-y-auto pr-1"></div><button id="modal-done-button" data-template-id="modal-done-button" type="button" class="canva-button flex h-10 w-full items-center justify-center rounded-xl px-4 font-bold shadow-md shadow-indigo-200 transition hover:brightness-95 active:scale-[.98]"></button>
+   </section>
+  </div>
+  <div id="confirm-overlay" class="fixed inset-0 z-[55] hidden items-center justify-center bg-slate-900/45 p-4 backdrop-blur-sm" role="presentation">
+   <section class="modal-panel w-full max-w-sm rounded-2xl bg-white p-4 shadow-2xl" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-description">
+    <div class="mb-3 grid h-10 w-10 place-items-center rounded-xl bg-emerald-100 text-emerald-700" aria-hidden="true">
+     <i data-lucide="check-check" class="h-5 w-5"></i>
+    </div>
+    <h2 id="confirm-title" data-template-id="confirm-title" class="canva-text cute-font font-black"></h2>
+    <p id="confirm-description" data-template-id="confirm-description" class="canva-text mt-1.5"></p>
+    <div class="mt-4 grid grid-cols-2 gap-2"><button id="confirm-cancel-button" data-template-id="confirm-cancel-button" type="button" class="canva-button rounded-lg px-3 py-2 font-bold"></button> <button id="confirm-clear-button" data-template-id="confirm-clear-button" type="button" class="canva-button rounded-lg px-3 py-2 font-bold"></button>
+    </div>
+   </section>
+  </div>
+  <div id="toast" class="toast pointer-events-none fixed bottom-5 left-1/2 z-[60] max-w-[calc(100%-2rem)] -translate-x-1/2 translate-y-3 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white opacity-0 shadow-xl" role="status" aria-live="polite"></div>
+  <script>
+    if(!Promise.withResolvers)Promise.withResolvers=()=>{let resolve,reject,promise=new Promise((a,b)=>(resolve=a,reject=b));return{promise,resolve,reject}}
+  </script>
+  <script src="/_sdk/c939c145c3c74230.editing_sdk.js" integrity="sha512-jh2pv/gl9Gzzn5dxfzwQO4wkqtnAQIim+LIUDYfVu2cdqPkQV2MqbjsDUW5IYbrSZFjRlOBrIWzlvWDXQYxOjg=="></script>
+  <script>
+    // Firebase 設定 (請依需要修改為您的 Firebase 專案設定)
+    const firebaseConfig = {
+       apiKey: "AIzaSyAT9VXm8gf5Pn4A1iu3xXF6X8Ve9NYlUAk",
+  authDomain: "teacherboard-9224d.firebaseapp.com",
+  projectId: "teacherboard-9224d",
+  storageBucket: "teacherboard-9224d.firebasestorage.app",
+  messagingSenderId: "801036213120",
+  appId: "1:801036213120:web:2077de68b0a74395023f65"
+    };
+
+    const $=id=>document.getElementById(id),N=35,DEFAULT=["生字","圈短","短造","國習","聽考","國卷","數習","數練","國練","數卷","數八","作文","聯絡簿","回條","週記","甲本","乙本"];
+    
+    const app={
+      date:"",student:null,last:null,timer:null,days:Object.create(null),cards:new Map(),
+      db:null,docRef:null,isRemoteUpdate:false,
+      get day(){return this.days[this.date]??=( {items:[],records:Object.create(null)} )},
+      val:d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`,
+      parse:v=>{let[a,b,c]=v.split("-").map(Number);return new Date(a,b-1,c)},
+      init(){
+        this.date=this.val(new Date);$("homework-date").value=this.date;this.bind();this.chips();this.active();this.grid();this.update();this.weekday();lucide.createIcons();
+        this.initFirebase();
+      },
+      initFirebase(){
+        try {
+          if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+          }
+          this.db = firebase.firestore();
+          this.docRef = this.db.collection("Classrooms").doc("Homework_Data");
+          this.setupRealtimeListener();
+        } catch (e) {
+          console.error("Firebase 初始化失敗:", e);
+        }
+      },
+      setupRealtimeListener(){
+        if(!this.docRef) return;
+        this.docRef.onSnapshot(docSnap => {
+          if(docSnap.exists()){
+            const data = docSnap.data();
+            if(data && data.days){
+              this.isRemoteUpdate = true;
+              this.days = data.days;
+              this.chips();this.active();this.update();
+              if(this.student!==null) this.rows();
+              this.isRemoteUpdate = false;
+            }
+          }
+        }, err => console.error("Firebase 監聽出錯:", err));
+      },
+      saveToCloud(){
+        if(!this.docRef || this.isRemoteUpdate) return;
+        this.docRef.set({ days: this.days }, { merge: true }).catch(err => console.error("儲存至 Firebase 失敗:", err));
+      },
+      on(id,event,fn){$(id).addEventListener(event,fn)},
+      bind(){
+        this.on("previous-date-button","click",()=>this.shift(-1));this.on("next-date-button","click",()=>this.shift(1));
+        this.on("today-button","click",()=>this.set(this.val(new Date)));
+        this.on("homework-date","change",e=>e.target.value&&this.set(e.target.value));
+        this.on("custom-homework-form","submit",e=>(e.preventDefault(),this.add()));
+        this.on("copy-summary-button","click",()=>this.copy());this.on("clear-all-button","click",()=>this.confirm(true));
+        this.on("confirm-cancel-button","click",()=>this.confirm(false));this.on("confirm-clear-button","click",()=>this.clear());
+        ["modal-x-button","modal-done-button"].forEach(id=>this.on(id,"click",()=>this.modal(false)));
+        this.on("student-all-complete-button","click",()=>this.mark(true));this.on("student-all-missing-button","click",()=>this.mark(false));
+        ["student-modal-overlay","confirm-overlay"].forEach(id=>this.on(id,"click",e=>{if(e.target===e.currentTarget)id[0]==="s"?this.modal(false):this.confirm(false)}));
+        document.addEventListener("keydown",e=>{
+          let root=!$("confirm-overlay").classList.contains("hidden")?$("confirm-overlay"):!$("student-modal-overlay").classList.contains("hidden")?$("student-modal-overlay"):null;
+          if(e.key==="Escape"&&root)(root.id[0]==="c"?this.confirm(false):this.modal(false));
+          if(e.key==="Tab"&&root)this.trap(e,root)
+        })
+      },
+      trap(e,root){
+        let a=[...root.querySelectorAll('button:not([disabled]),input:not([disabled]),[tabindex]:not([tabindex="-1"])')].filter(x=>x.offsetParent);
+        if(!a.length)return;let first=a[0],last=a.at(-1);
+        if(e.shiftKey&&document.activeElement===first)(e.preventDefault(),last.focus());
+        else if(!e.shiftKey&&document.activeElement===last)(e.preventDefault(),first.focus())
+      },
+      set(v){this.date=v;$("homework-date").value=v;void this.day;this.weekday();this.chips();this.active();this.update()},
+      weekday(){$("weekday-label").textContent=`週${"日一二三四五六"[this.parse(this.date).getDay()]}`},
+      shift(n){let d=this.parse(this.date);d.setDate(d.getDate()+n);this.set(this.val(d))},
+      chips(){
+        let box=$("default-chips"),old=new Map([...box.children].map(x=>[x.dataset.item,x]));
+        DEFAULT.forEach(name=>{
+          let b=old.get(name);
+          if(!b){b=document.createElement("button");b.type="button";b.dataset.item=name;b.className="quick-chip";b.innerHTML='<span class="chip-icon" aria-hidden="true"></span><span></span>';b.lastChild.textContent=name;b.onclick=()=>this.toggle(name);box.append(b)}
+          let on=this.day.items.includes(name);b.classList.toggle("is-active",on);b.ariaPressed=on;b.firstChild.textContent=on?"✓":"+";old.delete(name)
+        });old.forEach(x=>x.remove())
+      },
+      toggle(name){this.day.items.includes(name)?this.remove(name):(this.day.items.push(name),this.refresh());this.saveToCloud();},
+      add(){
+        let input=$("new-hw-type"),name=input.value.trim().replace(/\s+/g," ");
+        if(!name)return this.toast("請先輸入作業項目。"),input.focus();
+        if(this.day.items.includes(name))return this.toast("這個作業項目已經加入。"),input.select();
+        this.day.items.push(name);input.value="";this.refresh();this.toast("已新增作業項目。");this.saveToCloud();
+      },
+      remove(name){this.day.items=this.day.items.filter(x=>x!==name);Object.values(this.day.records).forEach(r=>delete r[name]);this.refresh();this.saveToCloud();},
+      refresh(){this.chips();this.active();this.update();if(this.student!==null)this.rows()},
+      active(){
+        let box=$("active-hw-types"),items=this.day.items;$("item-count-label").textContent=`${items.length} 項`;
+        let empty=box.querySelector('[data-template-id="no-homework-message"]');
+        if(!items.length){
+          if(!empty){empty=document.createElement("span");empty.dataset.templateId="no-homework-message";empty.className="canva-text whitespace-nowrap italic"}
+          return box.replaceChildren(empty)
+        }
+        box.replaceChildren(...items.map(name=>{
+          let tag=document.createElement("span"),label=document.createElement("span"),remove=document.createElement("button");
+          tag.className="selected-tag";label.textContent=name;remove.type="button";remove.ariaLabel=`移除 ${name}`;remove.textContent="×";remove.onclick=()=>this.remove(name);tag.append(label,remove);return tag
+        }))
+      },
+      grid(){
+        let f=document.createDocumentFragment();
+        for(let n=1;n<=N;n++){
+          let card=document.createElement("button"),tape=document.createElement("span"),top=document.createElement("span"),num=document.createElement("span"),status=document.createElement("span"),detail=document.createElement("span");
+          card.type="button";card.className="student-card";card.dataset.student=n;card.style.animationDelay=`${Math.min(n*9,180)}ms`;
+          tape.className="cell-tape";tape.ariaHidden="true";top.className="relative z-10 flex w-full items-start justify-between gap-1";
+          num.className="cute-font text-base font-black tracking-tight text-slate-800";num.textContent=String(n).padStart(2,"0");
+          status.className="status-badge";detail.className="detail";top.append(num,status);card.append(tape,top,detail);card.onclick=()=>this.modal(true,n);f.append(card);this.cards.set(n,{card,status,detail})
+        }$("homework-grid").append(f)
+      },
+      pending(n){let r=this.day.records[n]||{};return this.day.items.filter(x=>r[x]===false)},
+      update(){
+        let total=0,students=[];
+        for(let n=1;n<=N;n++){
+          let pending=this.pending(n),ok=!pending.length,{card,status,detail}=this.cards.get(n);
+          total+=pending.length;if(!ok)students.push(String(n).padStart(2,"0"));
+          card.classList.toggle("incomplete",!ok);card.ariaLabel=`${n} 號，${ok?"已全數繳交":`缺交 ${pending.join("、")}`}`;
+          status.textContent=ok?"✓ 齊":`缺 ${pending.length}`;status.className=`status-badge shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-extrabold ${ok?"bg-emerald-100 text-emerald-700":"bg-red-500 text-white"}`;
+          detail.textContent=ok?"已全數繳交":pending.join("、");detail.className=`detail relative z-10 mt-1 line-clamp-2 text-[11px] ${ok?"font-medium text-slate-400":"font-bold text-red-600"}`
+        }
+        $("pending-count-badge").textContent=total;
+        let s=$("missing-students-summary"),missing=students.length;s.textContent=missing?`缺交：${students.join("、")} 號`:"全班齊交";
+        s.className=`canva-banner min-w-0 rounded-lg border px-2 py-1 ${missing?"border-red-100 bg-red-50 text-red-700":"border-emerald-100 bg-emerald-50 text-emerald-700"}`
+      },
+      show(id,on,focus){
+        let o=$(id);o.classList.toggle("hidden",!on);o.classList.toggle("flex",on);document.body.style.overflow=on?"hidden":"";
+        if(on){this.last=document.activeElement;focus&&$(focus).focus()}else if(this.last&&document.contains(this.last))this.last.focus()
+      },
+      modal(on,n){
+        if(on){this.student=n;$("modal-student-number").textContent=String(n).padStart(2,"0");this.rows();this.show("student-modal-overlay",true,"modal-x-button")}
+        else if(!$("student-modal-overlay").classList.contains("hidden")){this.show("student-modal-overlay",false);this.student=null}
+      },
+      rows(){
+        let list=$("student-homework-list"),empty=$("student-homework-empty"),buttons=[$("student-all-complete-button"),$("student-all-missing-button")],items=this.day.items;
+        empty.classList.toggle("hidden",!!items.length);buttons.forEach(b=>(b.disabled=!items.length,b.classList.toggle("opacity-50",!items.length)));
+        if(!items.length)return list.replaceChildren();
+        let record=this.day.records[this.student]||{};
+        list.replaceChildren(...items.map((name,i)=>{
+          let ok=record[name]!==false,row=document.createElement("label"),title=document.createElement("span"),right=document.createElement("span"),status=document.createElement("span"),check=document.createElement("input");
+          row.className=this.rowClass(ok);title.className=this.titleClass(ok);title.textContent=name;right.className="flex shrink-0 items-center gap-2";status.className=this.statusClass(ok);status.textContent=ok?"已繳交":"缺交";
+          check.id=`student-${this.student}-item-${i}`;check.type="checkbox";check.checked=ok;check.className="h-5 w-5 cursor-pointer rounded accent-emerald-600";check.ariaLabel=`${name}：${ok?"已繳交":"缺交"}`;
+          check.onchange=e=>this.item(name,e.target.checked,row,status,check);right.append(status,check);row.append(title,right);return row
+        }))
+      },
+      rowClass:ok=>`flex cursor-pointer items-center justify-between gap-3 rounded-xl border px-3 py-2 transition ${ok?"border-emerald-200 bg-emerald-50/70":"border-red-200 bg-red-50"}`,
+      titleClass:ok=>`min-w-0 break-words text-sm font-bold ${ok?"text-emerald-900":"text-red-800"}`,
+      statusClass:ok=>`text-[11px] font-bold ${ok?"text-emerald-700":"text-red-600"}`,
+      item(name,ok,row,status,check){
+        (this.day.records[this.student]??={})[name]=ok;row.className=this.rowClass(ok);row.firstChild.className=this.titleClass(ok);status.textContent=ok?"已繳交":"缺交";status.className=this.statusClass(ok);check.ariaLabel=`${name}：${ok?"已繳交":"缺交"}`;this.update();this.saveToCloud();
+      },
+      mark(ok){
+        if(this.student===null||!this.day.items.length)return;let r=this.day.records[this.student]??={};this.day.items.forEach(x=>r[x]=ok);this.rows();this.update();this.toast(ok?"此學生已全部設為已繳交。":"此學生已全部設為缺交。");this.saveToCloud();
+      },
+      confirm(on){
+        if(on&&!this.day.items.length)return this.toast("目前沒有作業項目可重設。");
+        if(on||!$("confirm-overlay").classList.contains("hidden"))this.show("confirm-overlay",on,on?"confirm-cancel-button":null)
+      },
+      clear(){this.day.records=Object.create(null);this.update();this.confirm(false);this.toast("已將全班設為全數繳交。");this.saveToCloud();},
+      summary(){
+        let lines=[`【${this.date} 作業缺交名單】`];
+        for(let n=1;n<=N;n++){let p=this.pending(n);if(p.length)lines.push(`${String(n).padStart(2,"0")}號：${p.join("、")}`)}
+        if(lines.length===1)lines.push("全班作業皆已繳交。");return lines.join("\n")
+      },
+      async copy(){
+        if(!this.day.items.length)return this.toast("今日尚未設定作業項目。");let text=this.summary(),ok=false;
+        try{await navigator.clipboard.writeText(text);ok=true}catch(_){
+          let t=document.createElement("textarea");t.value=text;t.readOnly=true;t.style.cssText="position:fixed;opacity:0";document.body.append(t);t.select();ok=document.execCommand("copy");t.remove()
+        }this.toast(ok?"缺交名單已複製。":"無法複製，請稍後再試。")
+      },
+      toast(msg){let t=$("toast");clearTimeout(this.timer);t.textContent=msg;t.classList.add("is-visible");this.timer=setTimeout(()=>t.classList.remove("is-visible"),2400)}
+    };
+    addEventListener("DOMContentLoaded",()=>app.init());
+  </script>
+ </body>
+</html>

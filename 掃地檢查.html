@@ -1,0 +1,377 @@
+﻿<!doctype html>
+<html lang="zh-TW">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>雙區域掃地檢查系統</title>
+  
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
+        *{box-sizing:border-box}html,body{height:100%;margin:0;padding:0}body{font-family:'Noto Sans TC',sans-serif;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%)}.status-box{cursor:pointer;width:45px;height:45px;border-radius:6px;border:2px solid #ccc;background:white;transition:all 0.3s ease;font-weight:700;font-size:10px;display:flex;align-items:center;justify-content:center;user-select:none;flex-shrink:0}.status-box:hover{transform:scale(1.1);box-shadow:0 2px 8px rgba(0,0,0,0.15)}.status-box.completed{background:#3b82f6;color:white;border-color:#3b82f6}.status-box.passed{background:#10b981;color:white;border-color:#10b981}.status-box.failed{background:#ef4444;color:white;border-color:#ef4444}.status-box.recleaned{background:#f97316;color:white;border-color:#f97316}.status-box.recleaned-passed{background:#8b5cf6;color:white;border-color:#8b5cf6}.section-divider{width:2px;background:linear-gradient(to bottom,transparent,#e5e7eb,transparent)}.toast{position:fixed;top:1rem;right:1rem;padding:1rem 1.5rem;border-radius:0.5rem;color:white;font-weight:500;z-index:10000;animation:slideIn 0.3s ease-out;box-shadow:0 4px 6px rgba(0,0,0,0.1)}@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+        .sync-status {font-size: 13px; padding: 4px 10px; border-radius: 20px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;}
+        .sync-online {background-color: #d1fae5; color: #065f46;}
+        .sync-offline {background-color: #fee2e2; color: #991b1b;}
+    </style>
+ </head>
+ <body>
+  <div class="h-full flex flex-col">
+   <header class="bg-white shadow-md p-4">
+    <div class="flex items-center justify-center gap-3 mb-2 flex-wrap">
+      <h1 id="systemTitle" class="text-3xl font-bold text-center text-purple-600">雙區域掃地檢查系統</h1>
+      <span id="syncStatus" class="sync-status sync-offline">雲端連線中...</span>
+      <button onclick="shareRoomLink()" class="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 text-xs px-3 py-1.5 rounded-full font-bold transition">🔗 分享同步房間</button>
+    </div>
+    <div class="flex items-center gap-4 justify-center max-w-4xl mx-auto">
+     <div id="statusDisplay" class="flex-1 text-center py-3 rounded-lg font-bold text-lg bg-gray-100 text-gray-700">
+      進行中...
+     </div>
+     <button id="resetAllButton" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-6 rounded-lg shadow-md hover:shadow-lg transition duration-300 whitespace-nowrap">🔄 全部重置</button>
+    </div>
+   </header>
+   <main class="flex-1 flex overflow-hidden">
+    <div class="flex-1 p-4 overflow-y-auto">
+     <div class="bg-white rounded-xl shadow-lg h-full flex flex-col">
+      <div class="flex-1 p-6 flex flex-col overflow-hidden">
+       <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-bold text-gray-800">📋 左區 掃地檢查清單</h3>
+        <div class="flex gap-2">
+         <button data-side="left" data-action="import" class="bg-purple-500 hover:bg-purple-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition duration-300">📥 匯入</button>
+         <button data-side="left" data-action="clear" class="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition duration-300">🗑️ 清除</button>
+         <button data-side="left" data-action="add" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition duration-300">➕ 新增</button>
+        </div>
+       </div>
+       <div class="flex-1 overflow-y-auto border-2 border-gray-200 rounded-lg bg-white">
+        <table class="w-full text-sm">
+         <thead class="sticky top-0 bg-gradient-to-r from-blue-100 to-blue-200">
+          <tr>
+           <th class="py-2 px-2 text-left text-gray-800 font-bold border-b-2 border-blue-300 w-12">座號</th>
+           <th class="py-2 px-2 text-left text-gray-800 font-bold border-b-2 border-blue-300 w-32">工作項目</th>
+           <th class="py-2 px-2 text-center text-gray-800 font-bold border-b-2 border-blue-300 w-16">已打掃</th>
+           <th class="py-2 px-2 text-center text-gray-800 font-bold border-b-2 border-blue-300 w-32">檢查</th>
+           <th class="py-2 px-2 text-center text-gray-800 font-bold border-b-2 border-blue-300 w-24">再打掃通過</th>
+          </tr>
+         </thead>
+         <tbody id="leftStudentList">
+          <tr>
+           <td colspan="5" class="py-8 text-center text-gray-400 text-lg">尚無資料，請新增或匯入</td>
+          </tr>
+         </tbody>
+        </table>
+       </div>
+      </div>
+     </div>
+    </div>
+    <div class="section-divider"></div>
+    <div class="flex-1 p-4 overflow-y-auto">
+     <div class="bg-white rounded-xl shadow-lg h-full flex flex-col">
+      <div class="flex-1 p-6 flex flex-col overflow-hidden">
+       <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-bold text-gray-800">📋 右區 掃地檢查清單</h3>
+        <div class="flex gap-2">
+         <button data-side="right" data-action="import" class="bg-purple-500 hover:bg-purple-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition duration-300">📥 匯入</button>
+         <button data-side="right" data-action="clear" class="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition duration-300">🗑️ 清除</button>
+         <button data-side="right" data-action="add" class="bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition duration-300">➕ 新增</button>
+        </div>
+       </div>
+       <div class="flex-1 overflow-y-auto border-2 border-gray-200 rounded-lg bg-white">
+        <table class="w-full text-sm">
+         <thead class="sticky top-0 bg-gradient-to-r from-green-100 to-green-200">
+          <tr>
+           <th class="py-2 px-2 text-left text-gray-800 font-bold border-b-2 border-green-300 w-12">座號</th>
+           <th class="py-2 px-2 text-left text-gray-800 font-bold border-b-2 border-green-300 w-32">工作項目</th>
+           <th class="py-2 px-2 text-center text-gray-800 font-bold border-b-2 border-green-300 w-16">已打掃</th>
+           <th class="py-2 px-2 text-center text-gray-800 font-bold border-b-2 border-green-300 w-32">檢查</th>
+           <th class="py-2 px-2 text-center text-gray-800 font-bold border-b-2 border-green-300 w-24">再打掃通過</th>
+          </tr>
+         </thead>
+         <tbody id="rightStudentList">
+          <tr>
+           <td colspan="5" class="py-8 text-center text-gray-400 text-lg">尚無資料，請新增或匯入</td>
+          </tr>
+         </tbody>
+        </table>
+       </div>
+      </div>
+     </div>
+    </div>
+   </main>
+  </div>
+
+  <script>
+        // --- Firebase 配置與初始化 ---
+        // 請將下方 firebaseConfig 替換為您的 Firebase 專案設定
+        const firebaseConfig = {
+            apiKey: "AIzaSyAT9VXm8gf5Pn4A1iu3xXF6X8Ve9NYlUAk",
+  authDomain: "teacherboard-9224d.firebaseapp.com",
+  projectId: "teacherboard-9224d",
+  storageBucket: "teacherboard-9224d.firebasestorage.app",
+  messagingSenderId: "801036213120",
+  appId: "1:801036213120:web:2077de68b0a74395023f65"
+        };
+
+        let db = null;
+        let roomRef = null;
+        let isCloudConnected = false;
+        let roomId = 'default_room';
+
+        try {
+            if (!firebase.apps.length) {
+                firebase.initializeApp(firebaseConfig);
+            }
+            db = firebase.firestore();
+        } catch (e) {
+            console.warn("Firebase 未設定或初始化失敗，系統切換為本地離線模式。");
+        }
+
+        let state = { left: { students: [] }, right: { students: [] } };
+
+        const debounce = (e, t) => { let a; return (...i) => { clearTimeout(a); a = setTimeout(() => e(...i), t); }; };
+        const escapeHtml = e => e ? String(e).replace(/[&<>"']/g, e => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[e]) : '';
+        const showToast = (e, t) => { const a = document.createElement('div'); a.className = `toast ${{ success: 'bg-green-500', error: 'bg-red-500', info: 'bg-blue-500' }[t] || 'bg-blue-500'}`; a.textContent = e; document.body.appendChild(a); setTimeout(() => { document.body.contains(a) && document.body.removeChild(a); }, 3e3); };
+        
+        const showConfirmDialog = (e, t) => { const a = document.createElement('div'); a.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4'; a.innerHTML = `<div class="bg-white rounded-xl shadow-2xl max-w-md w-full"><div class="p-6 border-b bg-gradient-to-r from-red-50 to-red-100"><h3 class="text-xl font-bold text-red-800">⚠️ 確認操作</h3></div><div class="p-6"><p class="text-gray-800 text-base">${escapeHtml(e)}</p></div><div class="p-6 border-t bg-gray-50 flex gap-3"><button class="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg transition">✓ 確定</button><button class="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 rounded-lg transition">✕ 取消</button></div></div>`; document.body.appendChild(a); a.querySelector('button').onclick = () => (t(), document.body.removeChild(a)); a.querySelectorAll('button')[1].onclick = () => document.body.removeChild(a); };
+        const showImportDialog = (e) => { const t = document.createElement('div'); t.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4'; t.innerHTML = `<div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full"><div class="p-6 border-b bg-gradient-to-r from-purple-50 to-purple-100"><h3 class="text-2xl font-bold text-purple-800">📥 匯入資料</h3></div><div class="p-6"><textarea id="txt" class="w-full h-64 px-4 py-3 border-2 border-gray-300 rounded-lg font-mono text-sm" placeholder="格式：座號,工作項目"></textarea><label class="flex items-center mt-4"><input type="checkbox" id="replace" class="mr-3 w-5 h-5"><span class="text-sm font-semibold">⚠️ 取代目前所有資料</span></label></div><div class="p-6 border-t bg-gray-50 flex gap-3"><button class="flex-1 bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 rounded-lg">✓ 確定</button><button class="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 rounded-lg">✕ 取消</button></div></div>`; document.body.appendChild(t); t.querySelector('button').onclick = async () => { await handleImport(e, document.getElementById('txt').value, document.getElementById('replace').checked); document.body.removeChild(t); }; t.querySelectorAll('button')[1].onclick = () => document.body.removeChild(t); };
+
+        function parseRoomId() {
+            const params = new URLSearchParams(window.location.search);
+            const room = params.get('room');
+            if (room) roomId = room;
+        }
+
+        function shareRoomLink() {
+            const url = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
+            navigator.clipboard.writeText(url).then(() => showToast('已複製同步房間連結！', 'success')).catch(() => prompt('請複製以下連結：', url));
+        }
+
+        function initCloudSync() {
+            const statusEl = document.getElementById('syncStatus');
+            if (!db) {
+                if (statusEl) { statusEl.textContent = '離線模式'; statusEl.className = 'sync-status sync-offline'; }
+                loadLocalSavedData();
+                return;
+            }
+
+            roomRef = db.collection('sweeping_inspection').doc(roomId);
+
+            roomRef.onSnapshot((doc) => {
+                isCloudConnected = true;
+                if (statusEl) {
+                    statusEl.textContent = `雲端同步中 (${roomId})`;
+                    statusEl.className = 'sync-status sync-online';
+                }
+
+                if (doc.exists) {
+                    const data = doc.data();
+                    if (data.left) state.left = data.left;
+                    if (data.right) state.right = data.right;
+                    renderStudentList('left');
+                    renderStudentList('right');
+                    updateStatusDisplay();
+                } else {
+                    saveData();
+                }
+            }, (error) => {
+                console.error("Firestore 即時監聽錯誤:", error);
+                isCloudConnected = false;
+                if (statusEl) {
+                    statusEl.textContent = '連線失敗 (離線備份)';
+                    statusEl.className = 'sync-status sync-offline';
+                }
+                loadLocalSavedData();
+            });
+        }
+
+        function saveData() {
+            localStorage.setItem('sweeping_state_' + roomId, JSON.stringify(state));
+            if (roomRef && isCloudConnected) {
+                roomRef.set({
+                    left: state.left,
+                    right: state.right,
+                    updatedAt: firebase.firestore.FieldValue ? firebase.firestore.FieldValue.serverTimestamp() : Date.now()
+                }, { merge: true }).catch(err => console.error("雲端寫入失敗:", err));
+            }
+        }
+
+        function loadLocalSavedData() {
+            const s = localStorage.getItem('sweeping_state_' + roomId);
+            if (s) {
+                try {
+                    const d = JSON.parse(s);
+                    if (d.left) state.left = d.left;
+                    if (d.right) state.right = d.right;
+                } catch(e) { console.error('本地資料解析失敗', e); }
+            }
+            renderStudentList('left');
+            renderStudentList('right');
+            updateStatusDisplay();
+        }
+
+        async function initSystem(){
+            parseRoomId();
+            document.getElementById('resetAllButton').onclick = handleResetAll;
+            document.querySelectorAll('[data-action]').forEach(e => {
+                e.onclick = () => {
+                    const t = e.dataset.side, a = e.dataset.action;
+                    if ('import' === a) showImportDialog(t);
+                    else if ('clear' === a) showConfirmDialog('確定要清除所有資料嗎？此操作無法復原！', () => handleClearAll(t));
+                    else if ('add' === a) handleAddStudent(t);
+                };
+            });
+            initCloudSync();
+            showToast('系統已就緒', 'success');
+        }
+
+        async function handleResetAll(){
+            showConfirmDialog('確定要將所有工作恢復為初始狀態嗎？', async () => {
+                ['left', 'right'].forEach(e => {
+                    state[e].students.forEach(t => {
+                        t.completion_status = 'pending';
+                        t.inspection_status = 'pending';
+                        t.recleaned_status = 'pending';
+                        t.recleaned_passed_status = 'pending';
+                    });
+                    renderStudentList(e);
+                });
+                saveData();
+                updateStatusDisplay();
+                showToast('已重置所有工作', 'success');
+            });
+        }
+
+        async function handleAddStudent(e){
+            const t = {
+                unique_id: `${e}_student_${Date.now()}_${Math.random().toString(36).substr(2,9)}`,
+                seat: '',
+                task: '',
+                completion_status: 'pending',
+                inspection_status: 'pending',
+                recleaned_status: 'pending',
+                recleaned_passed_status: 'pending'
+            };
+            state[e].students.push(t);
+            renderStudentList(e);
+            saveData();
+            showToast('已新增學生', 'success');
+        }
+
+        async function handleImport(e, t, a){
+            const i = t.trim().split('\n').filter(e => e.trim());
+            if(!i.length) return showToast('沒有有效的資料', 'error');
+            const l = i.map((t, a) => {
+                const parts = t.split(',');
+                return {
+                    unique_id: `${e}_student_${Date.now()}_${a}_${Math.random().toString(36).substr(2,9)}`,
+                    seat: parts[0]?.trim() || '',
+                    task: parts.slice(1).join(',').trim(),
+                    completion_status: 'pending',
+                    inspection_status: 'pending',
+                    recleaned_status: 'pending',
+                    recleaned_passed_status: 'pending'
+                };
+            }).filter(e => e.seat);
+
+            if(!l.length) return showToast('沒有有效的座號', 'error');
+            if(a){ state[e].students = []; }
+            state[e].students.push(...l);
+            renderStudentList(e);
+            saveData();
+            updateStatusDisplay();
+            showToast(`成功匯入 ${l.length} 筆資料`, 'success');
+        }
+
+        async function handleClearAll(e){
+            state[e].students = [];
+            renderStudentList(e);
+            saveData();
+            updateStatusDisplay();
+            showToast('已清除所有資料', 'success');
+        }
+
+        function updateStatusDisplay(){
+            const e = document.getElementById('statusDisplay'), t = state.left.students, a = state.right.students;
+            const i = [...t, ...a].filter(e => 'failed' === e.inspection_status && 'passed' !== e.recleaned_passed_status).map(e => e.seat).filter(e => e);
+            const l = t.length > 0 && t.every(e => 'passed' === e.inspection_status || ('failed' === e.inspection_status && 'passed' === e.recleaned_passed_status));
+            const r = a.length > 0 && a.every(e => 'passed' === e.inspection_status || ('failed' === e.inspection_status && 'passed' === e.recleaned_passed_status));
+            
+            if(l && r && t.length > 0 && a.length > 0) {
+                e.className = 'flex-1 text-center py-3 rounded-lg font-bold text-2xl bg-green-300 text-green-800';
+                e.innerHTML = '✓ 全部完成';
+            } else if(i.length > 0) {
+                e.className = 'flex-1 text-center py-3 rounded-lg font-bold text-xl bg-red-200 text-red-800';
+                e.innerHTML = `⚠️ 未通過: ${i.join(', ')}`;
+            } else {
+                e.className = 'flex-1 text-center py-3 rounded-lg font-bold text-lg bg-gray-100 text-gray-700';
+                e.innerHTML = '進行中...';
+            }
+        }
+
+        function renderStudentList(e){
+            const t = document.getElementById(e + 'StudentList'), a = state[e].students;
+            if(!a.length){
+                t.innerHTML = '<tr><td colspan="5" class="py-8 text-center text-gray-400">尚無資料</td></tr>';
+                return updateStatusDisplay();
+            }
+            t.innerHTML = '';
+            a.forEach(a => {
+                const i = document.createElement('tr');
+                const l = 'completed' === a.completion_status ? 'completed' : '';
+                const r = 'passed' === a.inspection_status ? 'passed' : 'failed' === a.inspection_status ? 'failed' : '';
+                
+                i.className = 'failed' === a.inspection_status && 'passed' !== a.recleaned_passed_status ? 'border-b bg-red-50' : 'border-b hover:bg-gray-50';
+                i.innerHTML = `<td class="py-2 px-2"><input type="text" value="${escapeHtml(a.seat)}" data-id="${a.unique_id}" data-field="seat" class="w-full px-2 py-1 border rounded text-xs font-bold"></td><td class="py-2 px-2"><input type="text" value="${escapeHtml(a.task)}" data-id="${a.unique_id}" data-field="task" class="w-full px-2 py-1 border rounded text-xs truncate"></td><td class="py-2 px-2 text-center"><div class="status-box ${l}" data-side="${e}" data-id="${a.unique_id}" data-type="completion">掃</div></td><td class="py-2 px-2 text-center"><div class="flex justify-center gap-1"><div class="status-box ${r}" data-side="${e}" data-id="${a.unique_id}" data-type="inspection">${'passed'===a.inspection_status?'通過':'failed'===a.inspection_status?'未通過':'待檢'}</div>${'failed'===a.inspection_status?`<div class="status-box ${'recleaned'===a.recleaned_status?'recleaned':''}" data-side="${e}" data-id="${a.unique_id}" data-type="recleaned">已再打掃</div>`:''}</div></td><td class="py-2 px-2 text-center">${'failed'===a.inspection_status?`<div class="status-box ${'passed'===a.recleaned_passed_status?'recleaned-passed':''}" data-side="${e}" data-id="${a.unique_id}" data-type="recleaned-passed">通過</div>`:''}</td>`;
+                t.appendChild(i);
+            });
+
+            t.querySelectorAll('input').forEach(a => {
+                a.addEventListener('input', debounce(async i => {
+                    const l = i.target.dataset.id, r = i.target.dataset.field, s = state[e].students.find(e => e.unique_id === l);
+                    if(s) {
+                        s[r] = i.target.value;
+                        saveData();
+                        updateStatusDisplay();
+                    }
+                }, 500));
+            });
+
+            t.querySelectorAll('.status-box').forEach(t => {
+                t.onclick = async function(){
+                    const side = this.dataset.side, id = this.dataset.id, type = this.dataset.type;
+                    const r = state[side].students.find(e => e.unique_id === id);
+                    if(r) {
+                        if('completion' === type) {
+                            r.completion_status = 'pending' === r.completion_status ? 'completed' : 'pending';
+                        } else if('inspection' === type) {
+                            const statuses = ['pending', 'passed', 'failed'];
+                            const nextIdx = (statuses.indexOf(r.inspection_status) + 1) % statuses.length;
+                            if('passed' === statuses[nextIdx]) {
+                                r.recleaned_status = 'pending';
+                                r.recleaned_passed_status = 'pending';
+                            }
+                            r.inspection_status = statuses[nextIdx];
+                        } else if('recleaned' === type) {
+                            if('failed' === r.inspection_status) {
+                                r.recleaned_status = 'pending' === r.recleaned_status ? 'recleaned' : 'pending';
+                            }
+                        } else if('recleaned-passed' === type) {
+                            if('failed' === r.inspection_status) {
+                                r.recleaned_passed_status = 'pending' === r.recleaned_passed_status ? 'passed' : 'pending';
+                            }
+                        }
+                        saveData();
+                        renderStudentList(side);
+                        updateStatusDisplay();
+                    }
+                };
+            });
+            updateStatusDisplay();
+        }
+
+        'loading' === document.readyState ? document.addEventListener('DOMContentLoaded', initSystem) : initSystem();
+    </script>
+ </body>
+</html>
