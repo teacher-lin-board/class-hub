@@ -1,17 +1,14 @@
 ﻿<!doctype html>
 <html lang="zh-TW">
- <head><script>window["__codeletBootstrap__"]=JSON.parse('{"A":"A","B":"20260723-05-e9a76f4"}');</script><script src="/_sdk/e358eac22bd01364.telemetry_sdk.js" integrity="sha512-KPxp3rw4K8Nu9ceWJc3gyM7srgaZxiFWOVbyu260EYzzAqdz10mfo5xyXrCx+wEKtGo77JbtmwXvFLbwrGzwvw=="></script>
+ <head>
+  <script>window["__codeletBootstrap__"]=JSON.parse('{"A":"A","B":"20260726-23-5888c34"}');</script>
+  <script src="/_sdk/e358eac22bd01364.telemetry_sdk.js" integrity="sha512-KPxp3rw4K8Nu9ceWJc3gyM7srgaZxiFWOVbyu260EYzzAqdz10mfo5xyXrCx+wEKtGo77JbtmwXvFLbwrGzwvw=="></script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>班級作業繳交紀錄簿</title>
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&amp;family=Zen+Maru+Gothic:wght@700;900&amp;display=swap" rel="stylesheet">
-  
-  <!-- Firebase SDKs (Compat) -->
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
-
   <style>
     :root{--ink:#1e293b;--indigo:#4f46e5}
     *{box-sizing:border-box}html{color-scheme:light}
@@ -25,7 +22,7 @@
     .quick-chip.is-active{border-color:#a5b4fc;color:#3730a3;background:#e0e7ff}
     .selected-tag{gap:4px;border-radius:8px;padding:0 4px 0 8px;color:#fff;background:var(--indigo);box-shadow:0 2px 5px #4f46e52e}
     .selected-tag button{display:grid;width:18px;height:18px;place-items:center;border-radius:5px;line-height:1}.selected-tag button:hover{background:#4338ca}
-    .student-card{position:relative;display:flex;width:100%;min-height:76px;cursor:pointer;flex-direction:column;justify-content:space-between;overflow:visible;border:2px solid #e2e8f0;border-radius:13px;padding:9px;background:#fff;text-align:left;box-shadow:0 4px 9px #0f172a0e;transition:transform .17s cubic-bezier(.34,1.56,.64,1),box-shadow .17s,border-color .17s;animation:card-in .33s both}
+    .student-card{position:relative;display:flex;width:100%;min-height:96px;cursor:pointer;flex-direction:column;justify-content:space-between;overflow:visible;border:2px solid #e2e8f0;border-radius:13px;padding:11px;background:#fff;text-align:left;box-shadow:0 4px 9px #0f172a0e;transition:transform .17s cubic-bezier(.34,1.56,.64,1),box-shadow .17s,border-color .17s;animation:card-in .33s both}
     .student-card:hover{z-index:2;transform:translateY(-3px);border-color:#c7d2fe;box-shadow:0 12px 24px -12px #0f172a4d}
     .student-card.incomplete{border-color:#fca5a5;background:#fff7f7;box-shadow:0 5px 14px #ef44441f}
     .cell-tape{position:absolute;top:-6px;left:50%;width:31px;height:9px;transform:translateX(-50%) rotate(-1deg);border-radius:2px;background:#fbbf24a1}
@@ -33,12 +30,46 @@
     .toast.is-visible{pointer-events:auto;opacity:1;transform:translate(-50%,0)}
     @keyframes card-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
     @keyframes modal-in{from{opacity:0;transform:scale(.97) translateY(6px)}to{opacity:1;transform:none}}
-    @media(max-width:639px){.student-card{min-height:72px}}
+    @media(max-width:639px){.student-card{min-height:84px;padding:9px}}
     @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
     ::-webkit-scrollbar{width:7px;height:7px}::-webkit-scrollbar-track{background:#f1f5f9}::-webkit-scrollbar-thumb{border-radius:8px;background:#cbd5e1}
   </style>
   <script src="/_sdk/935a53bc2e11fb8d.data_sdk.js" type="text/javascript" integrity="sha512-qr2oyPnEys1WebcOABaRh6hG77r5PWpqeWW6JTKbRJqly/INsfBi31CVNlTmHqjgeLpkVmmHZJUdxSx/32tOFQ=="></script>
   <script src="/_sdk/6030e540d4419216.resizing_sdk.js" type="text/javascript" integrity="sha512-b5KWzyoXsbWP4smq4sftIi6Kts4YVBpBsz0BwCViwbBJkK64a3/Z6ZMdWA+qnplNcXw4mhZeqvQi3mOosiRJdA=="></script>
+
+  <!-- Firebase SDK 與 雲端同步邏輯 -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    window.signInAnonymously = signInAnonymously;
+    window.getAuth = getAuth;
+
+    const customFirebaseConfig = {
+      apiKey: "AIzaSyAT9VXm8gf5Pn4A1iu3xXF6XV8Ve9NY1UAk",
+      authDomain: "teacherboard-9224d.firebaseapp.com",
+      projectId: "teacherboard-9224d",
+      storageBucket: "teacherboard-9224d.appspot.com",
+      messagingSenderId: "801036213120",
+      appId: "1:801036213120:web:2077de68b0a74395023f65"
+    };
+
+    const firebaseConfig = (typeof __firebase_config !== 'undefined' && __firebase_config !== '')
+      ? JSON.parse(__firebase_config)
+      : customFirebaseConfig;
+
+    const fbApp = initializeApp(firebaseConfig);
+    const auth = getAuth(fbApp);
+    const db = getFirestore(fbApp);
+
+    window.fbDb = db;
+    window.fbDoc = doc;
+    window.fbSetDoc = setDoc;
+    window.fbOnSnapshot = onSnapshot;
+
+    signInAnonymously(auth).catch(err => console.error("Firebase Auth Error:", err));
+  </script>
  </head>
  <body data-template-id="__page-root" class="min-h-screen pb-4">
   <div class="w-full px-2.5 py-2.5 sm:px-4">
@@ -49,19 +80,25 @@
       <div data-template-id="compact-toolbar" class="canva-panel compact-toolbar rounded-2xl border border-slate-200 p-2.5">
        <div class="flex flex-col gap-2">
         <div class="flex flex-wrap items-center gap-2">
-         <div class="flex shrink-0 items-center gap-1"><label data-template-id="date-label" for="homework-date" class="canva-text sr-only"></label> <button id="previous-date-button" type="button" aria-label="前一天" class="grid h-8 w-8 place-items-center rounded-lg bg-slate-100 text-slate-600 transition hover:bg-slate-200 active:scale-95"><i data-lucide="chevron-left" class="h-4 w-4" aria-hidden="true"></i></button> <input id="homework-date" type="date" class="h-8 w-[132px] rounded-lg border border-slate-300 bg-slate-50 px-2 text-xs font-bold text-slate-800 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"> <span id="weekday-label" class="min-w-8 text-center text-[11px] font-bold text-indigo-600" aria-live="polite"></span> <button id="next-date-button" type="button" aria-label="後一天" class="grid h-8 w-8 place-items-center rounded-lg bg-slate-100 text-slate-600 transition hover:bg-slate-200 active:scale-95"><i data-lucide="chevron-right" class="h-4 w-4" aria-hidden="true"></i></button> <button id="today-button" data-template-id="today-button" type="button" class="canva-button h-8 shrink-0 rounded-lg px-2.5 font-bold transition active:scale-95"></button>
+         <div class="flex shrink-0 items-center gap-1">
+          <label data-template-id="date-label" for="homework-date" class="canva-text sr-only"></label> <button id="previous-date-button" type="button" aria-label="前一天" class="grid h-8 w-8 place-items-center rounded-lg bg-slate-100 text-slate-600 transition hover:bg-slate-200 active:scale-95"><i data-lucide="chevron-left" class="h-4 w-4" aria-hidden="true"></i></button> <input id="homework-date" type="date" class="h-8 w-[132px] rounded-lg border border-slate-300 bg-slate-50 px-2 text-xs font-bold text-slate-800 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"> <span id="weekday-label" class="min-w-8 text-center text-[11px] font-bold text-indigo-600" aria-live="polite"></span> <button id="next-date-button" type="button" aria-label="後一天" class="grid h-8 w-8 place-items-center rounded-lg bg-slate-100 text-slate-600 transition hover:bg-slate-200 active:scale-95"><i data-lucide="chevron-right" class="h-4 w-4" aria-hidden="true"></i></button> <button id="today-button" data-template-id="today-button" type="button" class="canva-button h-8 shrink-0 rounded-lg px-2.5 font-bold transition active:scale-95"></button>
          </div>
          <div class="hidden h-6 w-px bg-slate-200 sm:block" aria-hidden="true"></div>
-         <form id="custom-homework-form" class="flex min-w-[230px] flex-1 items-center gap-1.5"><label data-template-id="custom-homework-label" for="new-hw-type" class="canva-text sr-only"></label> <input id="new-hw-type" data-template-id="custom-homework-input" type="text" maxlength="30" autocomplete="off" class="canva-input h-8 min-w-0 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 font-medium focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"> <button data-template-id="add-homework-button" type="submit" class="canva-button flex h-8 shrink-0 items-center gap-1 rounded-lg px-2.5 font-bold transition hover:brightness-95 active:scale-95"><i data-lucide="plus" class="h-3.5 w-3.5" aria-hidden="true"></i><span></span></button>
+         <form id="custom-homework-form" class="flex min-w-[230px] flex-1 items-center gap-1.5">
+          <label data-template-id="custom-homework-label" for="new-hw-type" class="canva-text sr-only"></label> <input id="new-hw-type" data-template-id="custom-homework-input" type="text" maxlength="30" autocomplete="off" class="canva-input h-8 min-w-0 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 font-medium focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"> <button data-template-id="add-homework-button" type="submit" class="canva-button flex h-8 shrink-0 items-center gap-1 rounded-lg px-2.5 font-bold transition hover:brightness-95 active:scale-95"><i data-lucide="plus" class="h-3.5 w-3.5" aria-hidden="true"></i><span></span></button>
          </form>
-         <div data-template-id="missing-badge" class="canva-tag flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-2.5"><i data-lucide="circle-alert" class="h-4 w-4" aria-hidden="true"></i> <span data-template-id="missing-badge-label" class="canva-text"></span> <strong id="pending-count-badge" class="cute-font text-base" aria-live="polite">0</strong>
+         <div data-template-id="missing-badge" class="canva-tag flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-2.5">
+          <i data-lucide="circle-alert" class="h-4 w-4" aria-hidden="true"></i> <span data-template-id="missing-badge-label" class="canva-text"></span> <strong id="pending-count-badge" class="cute-font text-base" aria-live="polite">0</strong>
          </div>
         </div>
-        <div class="flex min-w-0 items-start gap-1.5"><span data-template-id="quick-label" class="canva-text shrink-0"></span>
+        <div class="flex min-w-0 items-start gap-1.5">
+         <span data-template-id="quick-label" class="canva-text shrink-0"></span>
          <div id="default-chips" class="flex min-w-0 flex-1 flex-wrap gap-1" aria-label="常用作業項目"></div>
         </div>
-        <div class="flex min-w-0 items-center gap-1.5 border-t border-slate-100 pt-1.5"><span data-template-id="active-items-label" class="canva-text shrink-0"></span>
-         <div id="active-hw-types" class="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto pb-0.5"><span data-template-id="no-homework-message" class="canva-text whitespace-nowrap italic"></span>
+        <div class="flex min-w-0 items-center gap-1.5 border-t border-slate-100 pt-1.5">
+         <span data-template-id="active-items-label" class="canva-text shrink-0"></span>
+         <div id="active-hw-types" class="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto pb-0.5">
+          <span data-template-id="no-homework-message" class="canva-text whitespace-nowrap italic"></span>
          </div><span id="item-count-label" class="shrink-0 rounded-md bg-indigo-50 px-1.5 py-1 text-[10px] font-bold text-indigo-600" aria-live="polite">0 項</span>
         </div>
        </div>
@@ -73,10 +110,11 @@
         <h2 id="student-grid-title" data-template-id="student-grid-title" class="canva-text cute-font font-black"></h2><span data-template-id="student-grid-help" class="canva-text"></span>
         <div id="missing-students-summary" data-template-id="missing-students-summary" class="canva-banner min-w-0 rounded-lg border px-2 py-1" aria-live="polite"></div>
        </div>
-       <div class="flex shrink-0 items-center gap-1.5"><button id="clear-all-button" data-template-id="clear-all-button" type="button" class="canva-button flex h-8 items-center gap-1 rounded-lg border px-2.5 font-bold transition hover:brightness-95"><i data-lucide="check-check" class="h-3.5 w-3.5" aria-hidden="true"></i><span></span></button> <button id="copy-summary-button" data-template-id="copy-summary-button" type="button" class="canva-button flex h-8 items-center gap-1 rounded-lg border px-2.5 font-bold transition hover:brightness-95"><i data-lucide="copy" class="h-3.5 w-3.5" aria-hidden="true"></i><span></span></button>
+       <div class="flex shrink-0 items-center gap-1.5">
+        <button id="clear-all-button" data-template-id="clear-all-button" type="button" class="canva-button flex h-8 items-center gap-1 rounded-lg border px-2.5 font-bold transition hover:brightness-95"><i data-lucide="check-check" class="h-3.5 w-3.5" aria-hidden="true"></i><span></span></button> <button id="copy-summary-button" data-template-id="copy-summary-button" type="button" class="canva-button flex h-8 items-center gap-1 rounded-lg border px-2.5 font-bold transition hover:brightness-95"><i data-lucide="copy" class="h-3.5 w-3.5" aria-hidden="true"></i><span></span></button>
        </div>
       </div>
-      <div id="homework-grid" class="grid grid-cols-3 gap-2 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9" aria-label="1 至 35 號學生作業狀態"></div>
+      <div id="homework-grid" class="grid grid-cols-5 gap-2" aria-label="1 至 35 號學生作業狀態"></div>
      </section>
     </main>
     <footer class="mt-4 border-t border-slate-200/70 py-2 text-center">
@@ -88,8 +126,7 @@
    <section class="modal-panel max-h-[calc(92*min(var(--vh,1vh),1vh))] w-full max-w-sm overflow-y-auto rounded-2xl border border-white bg-white p-3.5 shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="student-modal-heading">
     <header class="mb-2.5 flex items-start justify-between border-b border-slate-100 pb-2.5">
      <div class="flex min-w-0 items-center gap-2.5">
-      <div class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-amber-500 text-white shadow-md shadow-amber-200">
-       <span id="modal-student-number" class="cute-font text-xl font-black">01</span>
+      <div class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-amber-500 text-white shadow-md shadow-amber-200"><span id="modal-student-number" class="cute-font text-xl font-black">01</span>
       </div>
       <div class="min-w-0">
        <h2 id="student-modal-heading" data-template-id="modal-title" class="canva-text cute-font font-black"></h2>
@@ -97,7 +134,8 @@
       </div>
      </div><button id="modal-x-button" data-template-id="modal-x-button" type="button" aria-label="關閉學生作業登記" class="canva-button grid h-8 w-8 shrink-0 place-items-center rounded-full transition hover:brightness-95"></button>
     </header>
-    <div class="mb-2 grid grid-cols-2 gap-1.5"><button id="student-all-complete-button" data-template-id="student-all-complete-button" type="button" class="canva-button flex h-9 items-center justify-center gap-1 rounded-lg border px-2 font-bold transition hover:brightness-95"><i data-lucide="circle-check" class="h-4 w-4" aria-hidden="true"></i><span data-template-id="student-all-complete-label" class="canva-text"></span></button> <button id="student-all-missing-button" data-template-id="student-all-missing-button" type="button" class="canva-button flex h-9 items-center justify-center gap-1 rounded-lg border px-2 font-bold transition hover:brightness-95"><i data-lucide="circle-x" class="h-4 w-4" aria-hidden="true"></i><span data-template-id="student-all-missing-label" class="canva-text"></span></button>
+    <div class="mb-2 grid grid-cols-2 gap-1.5">
+     <button id="student-all-complete-button" data-template-id="student-all-complete-button" type="button" class="canva-button flex h-9 items-center justify-center gap-1 rounded-lg border px-2 font-bold transition hover:brightness-95"><i data-lucide="circle-check" class="h-4 w-4" aria-hidden="true"></i><span data-template-id="student-all-complete-label" class="canva-text"></span></button> <button id="student-all-missing-button" data-template-id="student-all-missing-button" type="button" class="canva-button flex h-9 items-center justify-center gap-1 rounded-lg border px-2 font-bold transition hover:brightness-95"><i data-lucide="circle-x" class="h-4 w-4" aria-hidden="true"></i><span data-template-id="student-all-missing-label" class="canva-text"></span></button>
     </div>
     <div id="student-homework-empty" data-template-id="student-homework-empty" class="canva-banner hidden rounded-xl border border-amber-200 px-3 py-5 text-center"></div>
     <div id="student-homework-list" class="mb-2.5 max-h-[calc(48*min(var(--vh,1vh),1vh))] space-y-1.5 overflow-y-auto pr-1"></div><button id="modal-done-button" data-template-id="modal-done-button" type="button" class="canva-button flex h-10 w-full items-center justify-center rounded-xl px-4 font-bold shadow-md shadow-indigo-200 transition hover:brightness-95 active:scale-[.98]"></button>
@@ -105,12 +143,12 @@
   </div>
   <div id="confirm-overlay" class="fixed inset-0 z-[55] hidden items-center justify-center bg-slate-900/45 p-4 backdrop-blur-sm" role="presentation">
    <section class="modal-panel w-full max-w-sm rounded-2xl bg-white p-4 shadow-2xl" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-description">
-    <div class="mb-3 grid h-10 w-10 place-items-center rounded-xl bg-emerald-100 text-emerald-700" aria-hidden="true">
-     <i data-lucide="check-check" class="h-5 w-5"></i>
+    <div class="mb-3 grid h-10 w-10 place-items-center rounded-xl bg-emerald-100 text-emerald-700" aria-hidden="true"><i data-lucide="check-check" class="h-5 w-5"></i>
     </div>
     <h2 id="confirm-title" data-template-id="confirm-title" class="canva-text cute-font font-black"></h2>
     <p id="confirm-description" data-template-id="confirm-description" class="canva-text mt-1.5"></p>
-    <div class="mt-4 grid grid-cols-2 gap-2"><button id="confirm-cancel-button" data-template-id="confirm-cancel-button" type="button" class="canva-button rounded-lg px-3 py-2 font-bold"></button> <button id="confirm-clear-button" data-template-id="confirm-clear-button" type="button" class="canva-button rounded-lg px-3 py-2 font-bold"></button>
+    <div class="mt-4 grid grid-cols-2 gap-2">
+     <button id="confirm-cancel-button" data-template-id="confirm-cancel-button" type="button" class="canva-button rounded-lg px-3 py-2 font-bold"></button> <button id="confirm-clear-button" data-template-id="confirm-clear-button" type="button" class="canva-button rounded-lg px-3 py-2 font-bold"></button>
     </div>
    </section>
   </div>
@@ -118,60 +156,48 @@
   <script>
     if(!Promise.withResolvers)Promise.withResolvers=()=>{let resolve,reject,promise=new Promise((a,b)=>(resolve=a,reject=b));return{promise,resolve,reject}}
   </script>
-  <script src="/_sdk/c939c145c3c74230.editing_sdk.js" integrity="sha512-jh2pv/gl9Gzzn5dxfzwQO4wkqtnAQIim+LIUDYfVu2cdqPkQV2MqbjsDUW5IYbrSZFjRlOBrIWzlvWDXQYxOjg=="></script>
+  <script src="/_sdk/0a2c59aba90bafcf.editing_sdk.js" integrity="sha512-oJ0eVi6NgEzXGPCIPXJiGxB6ZRyIzQ1VF+WywtAc5NXBkRu8KT/0qsMQvecuVbkhSpdfToUqXoPwRVBZaa+Xxw=="></script>
   <script>
-    // Firebase 設定 (請依需要修改為您的 Firebase 專案設定)
-    const firebaseConfig = {
-       apiKey: "AIzaSyAT9VXm8gf5Pn4A1iu3xXF6X8Ve9NYlUAk",
-  authDomain: "teacherboard-9224d.firebaseapp.com",
-  projectId: "teacherboard-9224d",
-  storageBucket: "teacherboard-9224d.firebasestorage.app",
-  messagingSenderId: "801036213120",
-  appId: "1:801036213120:web:2077de68b0a74395023f65"
-    };
-
     const $=id=>document.getElementById(id),N=35,DEFAULT=["生字","圈短","短造","國習","聽考","國卷","數習","數練","國練","數卷","數八","作文","聯絡簿","回條","週記","甲本","乙本"];
-    
     const app={
       date:"",student:null,last:null,timer:null,days:Object.create(null),cards:new Map(),
-      db:null,docRef:null,isRemoteUpdate:false,
+      isSyncingRemote:false,saveTimer:null,
       get day(){return this.days[this.date]??=( {items:[],records:Object.create(null)} )},
       val:d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`,
       parse:v=>{let[a,b,c]=v.split("-").map(Number);return new Date(a,b-1,c)},
       init(){
         this.date=this.val(new Date);$("homework-date").value=this.date;this.bind();this.chips();this.active();this.grid();this.update();this.weekday();lucide.createIcons();
-        this.initFirebase();
+        this.initSync();
       },
-      initFirebase(){
-        try {
-          if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
-          }
-          this.db = firebase.firestore();
-          this.docRef = this.db.collection("Classrooms").doc("Homework_Data");
-          this.setupRealtimeListener();
-        } catch (e) {
-          console.error("Firebase 初始化失敗:", e);
+      initSync(){
+        if(!window.fbDb){
+          setTimeout(()=>this.initSync(),300);
+          return;
         }
-      },
-      setupRealtimeListener(){
-        if(!this.docRef) return;
-        this.docRef.onSnapshot(docSnap => {
+        const docRef=window.fbDoc(window.fbDb,"Classrooms","Homework_Data");
+        window.fbOnSnapshot(docRef,(docSnap)=>{
           if(docSnap.exists()){
-            const data = docSnap.data();
-            if(data && data.days){
-              this.isRemoteUpdate = true;
-              this.days = data.days;
-              this.chips();this.active();this.update();
-              if(this.student!==null) this.rows();
-              this.isRemoteUpdate = false;
+            const remoteData=docSnap.data();
+            if(remoteData&&remoteData.days){
+              this.isSyncingRemote=true;
+              this.days=remoteData.days;
+              this.chips();
+              this.active();
+              this.update();
+              if(this.student!==null)this.rows();
+              this.isSyncingRemote=false;
             }
           }
-        }, err => console.error("Firebase 監聽出錯:", err));
+        },err=>console.error("Firebase Sync Error:",err));
       },
-      saveToCloud(){
-        if(!this.docRef || this.isRemoteUpdate) return;
-        this.docRef.set({ days: this.days }, { merge: true }).catch(err => console.error("儲存至 Firebase 失敗:", err));
+      saveSync(){
+        if(this.isSyncingRemote||!window.fbDb)return;
+        clearTimeout(this.saveTimer);
+        this.saveTimer=setTimeout(()=>{
+          const docRef=window.fbDoc(window.fbDb,"Classrooms","Homework_Data");
+          window.fbSetDoc(docRef,{days:this.days},{merge:true})
+            .catch(err=>console.error("Firebase Save Error:",err));
+        },300);
       },
       on(id,event,fn){$(id).addEventListener(event,fn)},
       bind(){
@@ -207,15 +233,15 @@
           let on=this.day.items.includes(name);b.classList.toggle("is-active",on);b.ariaPressed=on;b.firstChild.textContent=on?"✓":"+";old.delete(name)
         });old.forEach(x=>x.remove())
       },
-      toggle(name){this.day.items.includes(name)?this.remove(name):(this.day.items.push(name),this.refresh());this.saveToCloud();},
+      toggle(name){this.day.items.includes(name)?this.remove(name):(this.day.items.push(name),this.refresh())},
       add(){
         let input=$("new-hw-type"),name=input.value.trim().replace(/\s+/g," ");
         if(!name)return this.toast("請先輸入作業項目。"),input.focus();
         if(this.day.items.includes(name))return this.toast("這個作業項目已經加入。"),input.select();
-        this.day.items.push(name);input.value="";this.refresh();this.toast("已新增作業項目。");this.saveToCloud();
+        this.day.items.push(name);input.value="";this.refresh();this.toast("已新增作業項目。")
       },
-      remove(name){this.day.items=this.day.items.filter(x=>x!==name);Object.values(this.day.records).forEach(r=>delete r[name]);this.refresh();this.saveToCloud();},
-      refresh(){this.chips();this.active();this.update();if(this.student!==null)this.rows()},
+      remove(name){this.day.items=this.day.items.filter(x=>x!==name);Object.values(this.day.records).forEach(r=>delete r[name]);this.refresh()},
+      refresh(){this.chips();this.active();this.update();if(this.student!==null)this.rows();this.saveSync()},
       active(){
         let box=$("active-hw-types"),items=this.day.items;$("item-count-label").textContent=`${items.length} 項`;
         let empty=box.querySelector('[data-template-id="no-homework-message"]');
@@ -276,16 +302,16 @@
       titleClass:ok=>`min-w-0 break-words text-sm font-bold ${ok?"text-emerald-900":"text-red-800"}`,
       statusClass:ok=>`text-[11px] font-bold ${ok?"text-emerald-700":"text-red-600"}`,
       item(name,ok,row,status,check){
-        (this.day.records[this.student]??={})[name]=ok;row.className=this.rowClass(ok);row.firstChild.className=this.titleClass(ok);status.textContent=ok?"已繳交":"缺交";status.className=this.statusClass(ok);check.ariaLabel=`${name}：${ok?"已繳交":"缺交"}`;this.update();this.saveToCloud();
+        (this.day.records[this.student]??={})[name]=ok;row.className=this.rowClass(ok);row.firstChild.className=this.titleClass(ok);status.textContent=ok?"已繳交":"缺交";status.className=this.statusClass(ok);check.ariaLabel=`${name}：${ok?"已繳交":"缺交"}`;this.update();this.saveSync()
       },
       mark(ok){
-        if(this.student===null||!this.day.items.length)return;let r=this.day.records[this.student]??={};this.day.items.forEach(x=>r[x]=ok);this.rows();this.update();this.toast(ok?"此學生已全部設為已繳交。":"此學生已全部設為缺交。");this.saveToCloud();
+        if(this.student===null||!this.day.items.length)return;let r=this.day.records[this.student]??={};this.day.items.forEach(x=>r[x]=ok);this.rows();this.update();this.toast(ok?"此學生已全部設為已繳交。":"此學生已全部設為缺交。");this.saveSync()
       },
       confirm(on){
         if(on&&!this.day.items.length)return this.toast("目前沒有作業項目可重設。");
         if(on||!$("confirm-overlay").classList.contains("hidden"))this.show("confirm-overlay",on,on?"confirm-cancel-button":null)
       },
-      clear(){this.day.records=Object.create(null);this.update();this.confirm(false);this.toast("已將全班設為全數繳交。");this.saveToCloud();},
+      clear(){this.day.records=Object.create(null);this.update();this.confirm(false);this.toast("已將全班設為全數繳交。");this.saveSync()},
       summary(){
         let lines=[`【${this.date} 作業缺交名單】`];
         for(let n=1;n<=N;n++){let p=this.pending(n);if(p.length)lines.push(`${String(n).padStart(2,"0")}號：${p.join("、")}`)}
