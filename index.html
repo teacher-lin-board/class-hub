@@ -17,6 +17,10 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+window.signInAnonymously = signInAnonymously;
+  
+window.getAuth = getAuth;
+
         // Firebase 設定 (請將下面的 YOUR_API_KEY 等更換為您的 Firebase 專案真實金鑰)
         const customFirebaseConfig = {
              apiKey: "AIzaSyAT9VXm8gf5Pn4A1iu3xXF6X8Ve9NYlUAk",
