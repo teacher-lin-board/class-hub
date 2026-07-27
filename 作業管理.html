@@ -76,30 +76,40 @@
    <div class="mx-auto w-full max-w-7xl">
     <main>
      <section aria-labelledby="controls-heading" class="mb-2.5">
-      <h1 id="controls-heading" data-template-id="compact-title" class="canva-text sr-only"></h1>
-      <div data-template-id="compact-toolbar" class="canva-panel compact-toolbar rounded-2xl border border-slate-200 p-2.5">
+      <h1 id="controls-heading" class="sr-only">班級作業繳交紀錄簿</h1>
+      <div class="compact-toolbar rounded-2xl border border-slate-200 p-2.5">
        <div class="flex flex-col gap-2">
         <div class="flex flex-wrap items-center gap-2">
          <div class="flex shrink-0 items-center gap-1">
-          <label data-template-id="date-label" for="homework-date" class="canva-text sr-only"></label> <button id="previous-date-button" type="button" aria-label="前一天" class="grid h-8 w-8 place-items-center rounded-lg bg-slate-100 text-slate-600 transition hover:bg-slate-200 active:scale-95"><i data-lucide="chevron-left" class="h-4 w-4" aria-hidden="true"></i></button> <input id="homework-date" type="date" class="h-8 w-[132px] rounded-lg border border-slate-300 bg-slate-50 px-2 text-xs font-bold text-slate-800 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"> <span id="weekday-label" class="min-w-8 text-center text-[11px] font-bold text-indigo-600" aria-live="polite"></span> <button id="next-date-button" type="button" aria-label="後一天" class="grid h-8 w-8 place-items-center rounded-lg bg-slate-100 text-slate-600 transition hover:bg-slate-200 active:scale-95"><i data-lucide="chevron-right" class="h-4 w-4" aria-hidden="true"></i></button> <button id="today-button" data-template-id="today-button" type="button" class="canva-button h-8 shrink-0 rounded-lg px-2.5 font-bold transition active:scale-95"></button>
+          <label for="homework-date" class="sr-only">選擇日期</label>
+          <button id="previous-date-button" type="button" aria-label="前一天" class="grid h-8 w-8 place-items-center rounded-lg bg-slate-100 text-slate-600 transition hover:bg-slate-200 active:scale-95"><i data-lucide="chevron-left" class="h-4 w-4" aria-hidden="true"></i></button>
+          <input id="homework-date" type="date" class="h-8 w-[132px] rounded-lg border border-slate-300 bg-slate-50 px-2 text-xs font-bold text-slate-800 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <span id="weekday-label" class="min-w-8 text-center text-[11px] font-bold text-indigo-600" aria-live="polite"></span>
+          <button id="next-date-button" type="button" aria-label="後一天" class="grid h-8 w-8 place-items-center rounded-lg bg-slate-100 text-slate-600 transition hover:bg-slate-200 active:scale-95"><i data-lucide="chevron-right" class="h-4 w-4" aria-hidden="true"></i></button>
+          <button id="today-button" type="button" class="h-8 shrink-0 rounded-lg bg-indigo-50 px-2.5 text-xs font-bold text-indigo-600 transition hover:bg-indigo-100 active:scale-95">今天</button>
          </div>
          <div class="hidden h-6 w-px bg-slate-200 sm:block" aria-hidden="true"></div>
          <form id="custom-homework-form" class="flex min-w-[230px] flex-1 items-center gap-1.5">
-          <label data-template-id="custom-homework-label" for="new-hw-type" class="canva-text sr-only"></label> <input id="new-hw-type" data-template-id="custom-homework-input" type="text" maxlength="30" autocomplete="off" class="canva-input h-8 min-w-0 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 font-medium focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"> <button data-template-id="add-homework-button" type="submit" class="canva-button flex h-8 shrink-0 items-center gap-1 rounded-lg px-2.5 font-bold transition hover:brightness-95 active:scale-95"><i data-lucide="plus" class="h-3.5 w-3.5" aria-hidden="true"></i><span></span></button>
+          <label for="new-hw-type" class="sr-only">自訂作業項目</label>
+          <input id="new-hw-type" type="text" placeholder="輸入作業名稱..." maxlength="30" autocomplete="off" class="h-8 min-w-0 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 text-xs font-medium focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <button type="submit" class="flex h-8 shrink-0 items-center gap-1 rounded-lg bg-indigo-600 px-2.5 text-xs font-bold text-white transition hover:bg-indigo-700 active:scale-95"><i data-lucide="plus" class="h-3.5 w-3.5" aria-hidden="true"></i><span>新增</span></button>
          </form>
-         <div data-template-id="missing-badge" class="canva-tag flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-2.5">
-          <i data-lucide="circle-alert" class="h-4 w-4" aria-hidden="true"></i> <span data-template-id="missing-badge-label" class="canva-text"></span> <strong id="pending-count-badge" class="cute-font text-base" aria-live="polite">0</strong>
+         <div class="flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 text-xs font-bold text-amber-700 border border-amber-200">
+          <i data-lucide="circle-alert" class="h-4 w-4" aria-hidden="true"></i>
+          <span>未繳總人次：</span>
+          <strong id="pending-count-badge" class="cute-font text-base" aria-live="polite">0</strong>
          </div>
         </div>
         <div class="flex min-w-0 items-start gap-1.5">
-         <span data-template-id="quick-label" class="canva-text shrink-0"></span>
+         <span class="shrink-0 text-xs font-bold text-slate-500">常用：</span>
          <div id="default-chips" class="flex min-w-0 flex-1 flex-wrap gap-1" aria-label="常用作業項目"></div>
         </div>
         <div class="flex min-w-0 items-center gap-1.5 border-t border-slate-100 pt-1.5">
-         <span data-template-id="active-items-label" class="canva-text shrink-0"></span>
+         <span class="shrink-0 text-xs font-bold text-slate-500">今日作業：</span>
          <div id="active-hw-types" class="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto pb-0.5">
-          <span data-template-id="no-homework-message" class="canva-text whitespace-nowrap italic"></span>
-         </div><span id="item-count-label" class="shrink-0 rounded-md bg-indigo-50 px-1.5 py-1 text-[10px] font-bold text-indigo-600" aria-live="polite">0 項</span>
+          <span class="whitespace-nowrap text-xs italic text-slate-400">尚未新增作業項目</span>
+         </div>
+         <span id="item-count-label" class="shrink-0 rounded-md bg-indigo-50 px-1.5 py-1 text-[10px] font-bold text-indigo-600" aria-live="polite">0 項</span>
         </div>
        </div>
       </div>
@@ -107,52 +117,81 @@
      <section aria-labelledby="student-grid-title">
       <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
        <div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-        <h2 id="student-grid-title" data-template-id="student-grid-title" class="canva-text cute-font font-black"></h2><span data-template-id="student-grid-help" class="canva-text"></span>
-        <div id="missing-students-summary" data-template-id="missing-students-summary" class="canva-banner min-w-0 rounded-lg border px-2 py-1" aria-live="polite"></div>
+        <h2 id="student-grid-title" class="cute-font font-black text-slate-800 text-lg">座號繳交狀態</h2>
+        <span class="text-xs font-medium text-slate-400">（點擊卡片登記作業）</span>
+        <div id="missing-students-summary" class="canva-banner min-w-0 rounded-lg border px-2 py-1 text-xs font-bold" aria-live="polite">全班齊交</div>
        </div>
        <div class="flex shrink-0 items-center gap-1.5">
-        <button id="clear-all-button" data-template-id="clear-all-button" type="button" class="canva-button flex h-8 items-center gap-1 rounded-lg border px-2.5 font-bold transition hover:brightness-95"><i data-lucide="check-check" class="h-3.5 w-3.5" aria-hidden="true"></i><span></span></button> <button id="copy-summary-button" data-template-id="copy-summary-button" type="button" class="canva-button flex h-8 items-center gap-1 rounded-lg border px-2.5 font-bold transition hover:brightness-95"><i data-lucide="copy" class="h-3.5 w-3.5" aria-hidden="true"></i><span></span></button>
+        <button id="clear-all-button" type="button" class="flex h-8 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50"><i data-lucide="check-check" class="h-3.5 w-3.5" aria-hidden="true"></i><span>全班全齊</span></button>
+        <button id="copy-summary-button" type="button" class="flex h-8 items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 text-xs font-bold text-indigo-700 transition hover:bg-indigo-100"><i data-lucide="copy" class="h-3.5 w-3.5" aria-hidden="true"></i><span>複製缺交名單</span></button>
        </div>
       </div>
       <div id="homework-grid" class="grid grid-cols-5 gap-2" aria-label="1 至 35 號學生作業狀態"></div>
      </section>
     </main>
     <footer class="mt-4 border-t border-slate-200/70 py-2 text-center">
-     <p data-template-id="footer-note" class="canva-text"></p>
+     <p class="text-xs text-slate-400">💡 提示：所有紀錄將自動儲存並即時跨裝置同步。</p>
     </footer>
    </div>
   </div>
+
+  <!-- 學生作業登記彈出視窗 (Modal) -->
   <div id="student-modal-overlay" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/45 p-3 backdrop-blur-sm" role="presentation">
-   <section class="modal-panel max-h-[calc(92*min(var(--vh,1vh),1vh))] w-full max-w-sm overflow-y-auto rounded-2xl border border-white bg-white p-3.5 shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="student-modal-heading">
-    <header class="mb-2.5 flex items-start justify-between border-b border-slate-100 pb-2.5">
+   <section class="modal-panel max-h-[calc(92*min(var(--vh,1vh),1vh))] w-full max-w-sm overflow-y-auto rounded-2xl border border-white bg-white p-4 shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="student-modal-heading">
+    <header class="mb-3 flex items-start justify-between border-b border-slate-100 pb-3">
      <div class="flex min-w-0 items-center gap-2.5">
-      <div class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-amber-500 text-white shadow-md shadow-amber-200"><span id="modal-student-number" class="cute-font text-xl font-black">01</span>
+      <div class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-amber-500 text-white shadow-md shadow-amber-200">
+        <span id="modal-student-number" class="cute-font text-xl font-black">01</span>
       </div>
       <div class="min-w-0">
-       <h2 id="student-modal-heading" data-template-id="modal-title" class="canva-text cute-font font-black"></h2>
-       <p data-template-id="modal-help" class="canva-text mt-0.5"></p>
+       <h2 id="student-modal-heading" class="cute-font font-black text-slate-800 text-base">號學生作業登記</h2>
+       <p id="modal-help" class="mt-0.5 text-xs text-slate-400 font-medium">取消勾選即標記為缺交。</p>
       </div>
-     </div><button id="modal-x-button" data-template-id="modal-x-button" type="button" aria-label="關閉學生作業登記" class="canva-button grid h-8 w-8 shrink-0 place-items-center rounded-full transition hover:brightness-95"></button>
+     </div>
+     <button id="modal-x-button" type="button" aria-label="關閉" class="grid h-8 w-8 shrink-0 place-items-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition">
+       <i data-lucide="x" class="h-5 w-5"></i>
+     </button>
     </header>
-    <div class="mb-2 grid grid-cols-2 gap-1.5">
-     <button id="student-all-complete-button" data-template-id="student-all-complete-button" type="button" class="canva-button flex h-9 items-center justify-center gap-1 rounded-lg border px-2 font-bold transition hover:brightness-95"><i data-lucide="circle-check" class="h-4 w-4" aria-hidden="true"></i><span data-template-id="student-all-complete-label" class="canva-text"></span></button> <button id="student-all-missing-button" data-template-id="student-all-missing-button" type="button" class="canva-button flex h-9 items-center justify-center gap-1 rounded-lg border px-2 font-bold transition hover:brightness-95"><i data-lucide="circle-x" class="h-4 w-4" aria-hidden="true"></i><span data-template-id="student-all-missing-label" class="canva-text"></span></button>
+
+    <div class="mb-3 grid grid-cols-2 gap-2">
+     <button id="student-all-complete-button" type="button" class="flex h-9 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-bold transition hover:bg-emerald-100 active:scale-95">
+       <i data-lucide="circle-check" class="h-4 w-4" aria-hidden="true"></i>
+       <span>全選</span>
+     </button>
+     <button id="student-all-missing-button" type="button" class="flex h-9 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 text-red-700 text-xs font-bold transition hover:bg-red-100 active:scale-95">
+       <i data-lucide="circle-x" class="h-4 w-4" aria-hidden="true"></i>
+       <span>全取消</span>
+     </button>
     </div>
-    <div id="student-homework-empty" data-template-id="student-homework-empty" class="canva-banner hidden rounded-xl border border-amber-200 px-3 py-5 text-center"></div>
-    <div id="student-homework-list" class="mb-2.5 max-h-[calc(48*min(var(--vh,1vh),1vh))] space-y-1.5 overflow-y-auto pr-1"></div><button id="modal-done-button" data-template-id="modal-done-button" type="button" class="canva-button flex h-10 w-full items-center justify-center rounded-xl px-4 font-bold shadow-md shadow-indigo-200 transition hover:brightness-95 active:scale-[.98]"></button>
+
+    <div id="student-homework-empty" class="hidden rounded-xl border border-amber-200 bg-amber-50/50 px-3 py-5 text-center text-xs font-bold text-amber-800">
+      請先在上方加入作業項目。
+    </div>
+
+    <div id="student-homework-list" class="mb-3 max-h-[calc(48*min(var(--vh,1vh),1vh))] space-y-1.5 overflow-y-auto pr-1"></div>
+
+    <button id="modal-done-button" type="button" class="flex h-10 w-full items-center justify-center rounded-xl bg-indigo-600 text-sm font-bold text-white shadow-md shadow-indigo-200 transition hover:bg-indigo-700 active:scale-[.98]">
+      確認並關閉
+    </button>
    </section>
   </div>
+
+  <!-- 確認對話框 -->
   <div id="confirm-overlay" class="fixed inset-0 z-[55] hidden items-center justify-center bg-slate-900/45 p-4 backdrop-blur-sm" role="presentation">
    <section class="modal-panel w-full max-w-sm rounded-2xl bg-white p-4 shadow-2xl" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-description">
     <div class="mb-3 grid h-10 w-10 place-items-center rounded-xl bg-emerald-100 text-emerald-700" aria-hidden="true"><i data-lucide="check-check" class="h-5 w-5"></i>
     </div>
-    <h2 id="confirm-title" data-template-id="confirm-title" class="canva-text cute-font font-black"></h2>
-    <p id="confirm-description" data-template-id="confirm-description" class="canva-text mt-1.5"></p>
+    <h2 id="confirm-title" class="cute-font font-black text-slate-800 text-base">確定要重置為全班全齊？</h2>
+    <p id="confirm-description" class="mt-1.5 text-xs text-slate-500 font-medium">這將會清除今日所有學生的缺交紀錄，改為全部已繳交。</p>
     <div class="mt-4 grid grid-cols-2 gap-2">
-     <button id="confirm-cancel-button" data-template-id="confirm-cancel-button" type="button" class="canva-button rounded-lg px-3 py-2 font-bold"></button> <button id="confirm-clear-button" data-template-id="confirm-clear-button" type="button" class="canva-button rounded-lg px-3 py-2 font-bold"></button>
+     <button id="confirm-cancel-button" type="button" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50">取消</button>
+     <button id="confirm-clear-button" type="button" class="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700">確定重置</button>
     </div>
    </section>
   </div>
-  <div id="toast" class="toast pointer-events-none fixed bottom-5 left-1/2 z-[60] max-w-[calc(100%-2rem)] -translate-x-1/2 translate-y-3 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white opacity-0 shadow-xl" role="status" aria-live="polite"></div>
+
+  <div id="toast" class="toast pointer-events-none fixed bottom-5 left-1/2 z-[60] max-w-[calc(100%-2rem)] -translate-x-1/2 translate-y-3 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white opacity-0 shadow-xl" role="status" aria-live="polite"></div>
+
   <script>
     if(!Promise.withResolvers)Promise.withResolvers=()=>{let resolve,reject,promise=new Promise((a,b)=>(resolve=a,reject=b));return{promise,resolve,reject}}
   </script>
@@ -244,9 +283,8 @@
       refresh(){this.chips();this.active();this.update();if(this.student!==null)this.rows();this.saveSync()},
       active(){
         let box=$("active-hw-types"),items=this.day.items;$("item-count-label").textContent=`${items.length} 項`;
-        let empty=box.querySelector('[data-template-id="no-homework-message"]');
         if(!items.length){
-          if(!empty){empty=document.createElement("span");empty.dataset.templateId="no-homework-message";empty.className="canva-text whitespace-nowrap italic"}
+          let empty=document.createElement("span");empty.className="whitespace-nowrap text-xs italic text-slate-400";empty.textContent="尚未新增作業項目";
           return box.replaceChildren(empty)
         }
         box.replaceChildren(...items.map(name=>{
@@ -276,14 +314,14 @@
         }
         $("pending-count-badge").textContent=total;
         let s=$("missing-students-summary"),missing=students.length;s.textContent=missing?`缺交：${students.join("、")} 號`:"全班齊交";
-        s.className=`canva-banner min-w-0 rounded-lg border px-2 py-1 ${missing?"border-red-100 bg-red-50 text-red-700":"border-emerald-100 bg-emerald-50 text-emerald-700"}`
+        s.className=`canva-banner min-w-0 rounded-lg border px-2 py-1 text-xs font-bold ${missing?"border-red-100 bg-red-50 text-red-700":"border-emerald-100 bg-emerald-50 text-emerald-700"}`
       },
       show(id,on,focus){
         let o=$(id);o.classList.toggle("hidden",!on);o.classList.toggle("flex",on);document.body.style.overflow=on?"hidden":"";
         if(on){this.last=document.activeElement;focus&&$(focus).focus()}else if(this.last&&document.contains(this.last))this.last.focus()
       },
       modal(on,n){
-        if(on){this.student=n;$("modal-student-number").textContent=String(n).padStart(2,"0");this.rows();this.show("student-modal-overlay",true,"modal-x-button")}
+        if(on){this.student=n;$("modal-student-number").textContent=String(n).padStart(2,"0");this.rows();this.show("student-modal-overlay",true,"modal-x-button");lucide.createIcons();}
         else if(!$("student-modal-overlay").classList.contains("hidden")){this.show("student-modal-overlay",false);this.student=null}
       },
       rows(){
@@ -309,7 +347,7 @@
       },
       confirm(on){
         if(on&&!this.day.items.length)return this.toast("目前沒有作業項目可重設。");
-        if(on||!$("confirm-overlay").classList.contains("hidden"))this.show("confirm-overlay",on,on?"confirm-cancel-button":null)
+        if(on||!$("confirm-overlay").classList.contains("hidden"))this.show("confirm-overlay",on,on?"confirm-cancel-button":null);lucide.createIcons();
       },
       clear(){this.day.records=Object.create(null);this.update();this.confirm(false);this.toast("已將全班設為全數繳交。");this.saveSync()},
       summary(){
