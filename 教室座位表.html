@@ -1,760 +1,441 @@
 ﻿<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>教室座位表編排與管理系統 (Firebase 即時同步版)</title>
-    <!-- Tailwind CSS & FontAwesome -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <!-- Firebase SDK (Compat Version) -->
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
-
-    <style>
-        .seat-cell { user-select: none; transition: all 0.2s ease; }
-        .seat-cell:hover { transform: translateY(-2px); }
-        .seat-content, #blackboard { transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>教室座位表編輯與管理系統</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .seat-slot {
+      min-height: 90px;
+      transition: all 0.2s ease;
+    }
+    .seat-slot.drag-over {
+      background-color: #e0e7ff;
+      border-color: #6366f1;
+    }
+    .student-card {
+      cursor: grab;
+      user-select: none;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .student-card:active {
+      cursor: grabbing;
+      transform: scale(0.95);
+    }
+  </style>
 </head>
-<body class="bg-slate-100 min-h-screen text-slate-800 font-sans">
+<body class="bg-slate-100 min-h-screen text-slate-800 font-sans pb-12">
 
-    <header class="bg-indigo-600 text-white shadow-md py-4 px-6 mb-6 flex flex-wrap justify-between items-center gap-4">
-        <div class="flex items-center gap-3">
-            <i class="fa-solid fa-chair text-2xl"></i>
-            <h1 class="text-xl md:text-2xl font-bold tracking-wide">教室座位表編排系統</h1>
-            <!-- Firebase 連線狀態顯示標籤 -->
-            <span id="firebaseStatus" class="text-xs px-2.5 py-1 rounded-full bg-slate-700/60 border border-slate-500 text-slate-200 flex items-center gap-1.5 ml-2">
-                <span id="statusDot" class="w-2 h-2 rounded-full bg-amber-400"></span>
-                <span id="statusText">Checking Firebase...</span>
-            </span>
-        </div>
-        <div class="flex flex-wrap gap-2">
-            <button onclick="toggleRotation()" class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition flex items-center gap-1.5 shadow">
-                <i class="fa-solid fa-rotate"></i> 旋轉視角 (180°)
-            </button>
-            <button onclick="openManageRolesModal()" class="bg-indigo-700 hover:bg-indigo-800 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition flex items-center gap-1.5">
-                <i class="fa-solid fa-list-check"></i> 管理工作項目
-            </button>
-            <button onclick="clearSavedData()" class="bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition flex items-center gap-1.5">
-                <i class="fa-solid fa-trash-can"></i> 清除紀錄
-            </button>
-            <button onclick="downloadSeatingChart()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition flex items-center gap-1.5 shadow">
-                <i class="fa-solid fa-image"></i> 下載圖片
-            </button>
-        </div>
-    </header>
+  <!-- 頂部導覽列 -->
+  <header class="bg-white shadow-sm border-b border-slate-200 sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-4">
+      <div class="flex items-center space-x-3">
+        <h1 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+          🪑 教室座位表與管理系統
+        </h1>
+        <span id="syncStatus" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+          🟡 初始化中...
+        </span>
+      </div>
 
-    <main class="max-w-7xl mx-auto px-4 pb-12 grid grid-cols-1 lg:grid-cols-12 gap-6">
-
-        <!-- 左側面板：名單匯入與控制區 -->
-        <section class="lg:col-span-4 min-w-0 bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col gap-5">
-            <div>
-                <div class="flex justify-between items-center mb-2">
-                    <h2 class="text-lg font-bold text-slate-700 flex items-center gap-2">
-                        <i class="fa-solid fa-users text-indigo-500"></i> 學生名單
-                    </h2>
-                </div>
-                <p class="text-xs text-slate-500 mb-2">格式：座號,姓名,性別（每行一位，如：1,張小明,男）</p>
-                <textarea id="studentList" rows="6" class="w-full p-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 font-mono" placeholder="1,張小明,男&#10;2,李小華,女&#10;3,王大同,男"></textarea>
-                <button onclick="parseAndImportStudents()" class="mt-2 w-full bg-slate-800 hover:bg-slate-900 text-white py-2 rounded-lg text-sm font-medium transition">
-                    解析並建立名牌
-                </button>
-            </div>
-
-            <!-- 自動分配按鈕 -->
-            <div class="border-t border-slate-200 pt-4">
-                <h3 class="text-sm font-bold text-slate-700 mb-2.5 flex items-center gap-2">
-                    <i class="fa-solid fa-wand-magic-sparkles text-amber-500"></i> 自動分配座位
-                </h3>
-                <div class="grid grid-cols-2 gap-2">
-                    <button onclick="randomSort()" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 py-2 px-3 rounded-lg text-sm font-medium transition flex items-center justify-center gap-1.5">
-                        <i class="fa-solid fa-shuffle"></i> 隨機排序
-                    </button>
-                    <button onclick="genderAlternate()" class="bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 py-2 px-3 rounded-lg text-sm font-medium transition flex items-center justify-center gap-1.5">
-                        <i class="fa-solid fa-venus-mars"></i> 男女相鄰
-                    </button>
-                </div>
-                <button onclick="clearSeats()" class="mt-2 w-full bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-300 py-1.5 rounded-lg text-xs font-medium transition">
-                    清空目前座位
-                </button>
-            </div>
-
-            <!-- 未分配學生名牌區 -->
-            <div class="border-t border-slate-200 pt-4 flex-1 flex flex-col min-h-[180px]">
-                <h3 class="text-sm font-bold text-slate-700 mb-2 flex items-center justify-between">
-                    <span><i class="fa-solid fa-address-card text-emerald-500"></i> 未座學生名牌</span>
-                    <span id="unassignedCount" class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">0</span>
-                </h3>
-                <div id="studentCards" ondragover="handleDragOver(event)" ondrop="handleCardsDrop(event)" class="flex-1 p-3 bg-slate-50 border-2 border-dashed border-slate-200 rounded-lg flex flex-wrap gap-2 content-start overflow-y-auto max-h-[220px]">
-                    <div class="text-xs text-slate-400 w-full text-center py-6">請先匯入學生名單</div>
-                </div>
-            </div>
-        </section>
-
-        <!-- 右側面板：座位表顯示區 -->
-        <section id="seatingChart" class="lg:col-span-8 min-w-0 bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center overflow-x-auto">
-            <div id="blackboard" class="w-2/3 max-w-md bg-emerald-600 text-white font-bold text-center py-2 rounded-md shadow-sm mb-8 tracking-widest text-lg">
-                黑板 / 講台
-            </div>
-            <table class="border-separate border-spacing-3 max-w-full">
-                <tbody id="seatingTableBody"></tbody>
-            </table>
-        </section>
-
-    </main>
-
-    <!-- 職務設定彈出視窗 -->
-    <div id="roleModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden justify-center items-center z-50 p-4">
-        <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-5">
-            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
-                <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
-                    <i class="fa-solid fa-user-tag text-indigo-500"></i> 設定學生工作/職務
-                </h3>
-                <button onclick="toggleModal('#roleModal', false)" class="text-slate-400 hover:text-slate-600 p-1">
-                    <i class="fa-solid fa-xmark text-lg"></i>
-                </button>
-            </div>
-            <div id="roleContainer" class="grid grid-cols-2 gap-3 max-h-60 overflow-y-auto p-1"></div>
-            <div class="flex justify-between gap-3 border-t border-slate-100 pt-4">
-                <button onclick="clearAllRoles()" class="px-4 py-2 border border-slate-300 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50">清除選取</button>
-                <div class="flex gap-2">
-                    <button onclick="toggleModal('#roleModal', false)" class="px-4 py-2 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200">取消</button>
-                    <button onclick="applyRoles()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">確定儲存</button>
-                </div>
-            </div>
-        </div>
+      <!-- 班級代碼控制 -->
+      <div class="flex items-center space-x-2 bg-slate-50 p-1 rounded-lg border border-slate-200">
+        <span class="text-xs font-semibold text-slate-500 pl-2">班級代碼:</span>
+        <input type="text" id="roomInput" value="default" class="w-24 px-2 py-1 text-sm border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 text-center font-bold">
+        <button onclick="switchRoom()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-3 py-1.5 rounded transition">
+          切換班級
+        </button>
+      </div>
     </div>
+  </header>
 
-    <!-- 工作內容管理視窗 -->
-    <div id="manageRolesModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden justify-center items-center z-50 p-4">
-        <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-5">
-            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
-                <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
-                    <i class="fa-solid fa-sliders text-indigo-500"></i> 管理學生工作項目
-                </h3>
-                <button onclick="toggleModal('#manageRolesModal', false)" class="text-slate-400 hover:text-slate-600 p-1">
-                    <i class="fa-solid fa-xmark text-lg"></i>
-                </button>
-            </div>
-            <div class="flex gap-2">
-                <input type="text" id="newRoleInput" placeholder="輸入新工作名稱 (例如：圖書長)" class="flex-1 p-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
-                <button onclick="addNewRole()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition shrink-0">
-                    <i class="fa-solid fa-plus"></i> 新增
-                </button>
-            </div>
-            <div class="space-y-2">
-                <label class="text-xs font-bold text-slate-500">目前工作項目（可編輯或刪除）：</label>
-                <div id="rolesManageList" class="max-h-60 overflow-y-auto space-y-2 pr-1"></div>
-            </div>
-            <div class="flex justify-end border-t border-slate-100 pt-4">
-                <button onclick="toggleModal('#manageRolesModal', false)" class="px-4 py-2 bg-slate-800 text-white rounded-lg text-sm font-medium hover:bg-slate-900">完成關閉</button>
-            </div>
+  <!-- 主要內容區塊 -->
+  <main class="max-w-7xl mx-auto px-4 mt-6 grid grid-cols-1 lg:grid-cols-4 gap-6">
+
+    <!-- 左側邊欄：學生名單與控制面版 -->
+    <section class="lg:col-span-1 bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col gap-4">
+      <div>
+        <h2 class="text-base font-bold text-slate-700 mb-1 flex items-center gap-1">
+          👥 學生名單
+        </h2>
+        <p class="text-xs text-slate-500 mb-2">格式：座號,姓名,性別 (每行一位)</p>
+        <textarea id="studentTextarea" rows="10" class="w-full text-xs font-mono p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">01,洪秉豪,男
+02,吳冠陞,男
+03,黃士軒,男
+04,徐乙豪,男
+05,葉睿軒,男
+06,曾梓豪,男
+07,陳柏瑋,男
+08,曾晨恩,男
+09,葉侑穎,男
+10,畢佳鈞,男
+11,陳以勛,男
+12,李宥瑨,男
+13,呂洸祐,男
+14,洪詠霖,男
+16,吳冠毅,男
+17,江芮妡,女
+18,蘇筠倢,女
+19,陳芷榆,女
+20,黃品穎,女
+21,蔡欣庭,女
+22,沈宜蒨,女
+23,邱苡萱,女
+24,蘇語萌,女
+25,盧詩云,女
+26,劉芷玹,女
+27,白堇汝,女
+28,潘潔希,女
+29,廖亭雅,女</textarea>
+      </div>
+
+      <div class="grid grid-cols-1 gap-2">
+        <button onclick="parseAndImport()" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-medium py-2 px-4 rounded-lg text-sm transition">
+          解析並帶入名單
+        </button>
+        <div class="grid grid-cols-2 gap-2">
+          <button onclick="autoArrange('alternate')" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-medium py-2 px-2 rounded-lg text-xs transition border border-indigo-200">
+            男女相鄰編排
+          </button>
+          <button onclick="autoArrange('random')" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-medium py-2 px-2 rounded-lg text-xs transition border border-emerald-200">
+            隨機排序
+          </button>
         </div>
-    </div>
+        <button onclick="clearBoard()" class="w-full bg-rose-50 hover:bg-rose-100 text-rose-600 font-medium py-1.5 px-4 rounded-lg text-xs transition border border-rose-200">
+          清空座位表
+        </button>
+      </div>
 
-    <script>
-        // ==========================================
-        // 🔥 Firebase 設定區域（請在此處填入您的 Firebase 設定）
-        // ==========================================
-        const firebaseConfig = {
-            apiKey: "AIzaSyAT9VXm8gf5Pn4A1iu3xXF6X8Ve9NYlUAk",
-  authDomain: "teacherboard-9224d.firebaseapp.com",
-  projectId: "teacherboard-9224d",
-  storageBucket: "teacherboard-9224d.firebasestorage.app",
-  messagingSenderId: "801036213120",
-  appId: "1:801036213120:web:2077de68b0a74395023f65"
-        };
+      <!-- 未分配萬用池 -->
+      <div class="mt-2 border-t pt-3">
+        <h3 class="text-xs font-bold text-slate-500 mb-2">未分配座位學生 (<span id="unassignedCount">0</span>)</h3>
+        <div id="unassignedPool" class="min-h-[80px] p-2 bg-slate-50 rounded-lg border border-dashed border-slate-300 flex flex-wrap gap-2 max-h-48 overflow-y-auto">
+          <!-- 未派座位的學生小標籤會在這裡 -->
+        </div>
+      </div>
+    </section>
 
-        let dbRef = null;
-        let isRemoteUpdating = false; // 避免自訂監聽器循環處置標記
+    <!-- 右側：講台與座位畫布 (5排 x 6欄 = 30格) -->
+    <section class="lg:col-span-3 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+      <!-- 黑板/講台標示 -->
+      <div class="mb-6 bg-emerald-700 text-white text-center py-2.5 rounded-lg shadow-inner font-bold text-sm tracking-wider">
+        黑 板 / 講 台
+      </div>
 
-        // DOM 簡寫輔助函式
-        const $ = s => document.querySelector(s);
-        const $$ = s => document.querySelectorAll(s);
-        const toggleModal = (id, show) => {
-            const el = $(id);
-            el.classList.toggle('hidden', !show);
-            el.classList.toggle('flex', show);
-        };
+      <!-- 30 個座位網格 (5列 x 6欄) -->
+      <div id="seatingGrid" class="grid grid-cols-6 gap-3">
+        <!-- JS 動態生成座位 Slot -->
+      </div>
+    </section>
 
-        let students = [], draggedElement = null, selectedSeat = null, selectedRoles = new Set(), isRotated = false;
-        let customRoles = ['發書長', '作業長', '副作業長', '檢查長', '收卷(書)長'];
+  </main>
 
-        const ROLE_COLORS = [
-            { bg: 'bg-indigo-100 text-indigo-800 border-indigo-200', hexBg: '#e0e7ff', hexText: '#3730a3' },
-            { bg: 'bg-emerald-100 text-emerald-800 border-emerald-200', hexBg: '#d1fae5', hexText: '#065f46' },
-            { bg: 'bg-amber-100 text-amber-800 border-amber-200', hexBg: '#fef3c7', hexText: '#92400e' },
-            { bg: 'bg-rose-100 text-rose-800 border-rose-200', hexBg: '#ffe4e6', hexText: '#9f1239' },
-            { bg: 'bg-purple-100 text-purple-800 border-purple-200', hexBg: '#f3e8ff', hexText: '#6b21a8' },
-            { bg: 'bg-sky-100 text-sky-800 border-sky-200', hexBg: '#e0f2fe', hexText: '#075985' },
-            { bg: 'bg-orange-100 text-orange-800 border-orange-200', hexBg: '#ffedd5', hexText: '#9a3412' },
-            { bg: 'bg-teal-100 text-teal-800 border-teal-200', hexBg: '#ccfbf1', hexText: '#115e59' }
-        ];
+  <!-- Firebase SDK 與 雲端同步邏輯 (與作業管理頁面統一) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        const getRoleColor = name => ROLE_COLORS[Math.abs([...name].reduce((acc, c) => (acc << 5) - acc + c.charCodeAt(0), 0)) % ROLE_COLORS.length];
+    const customFirebaseConfig = {
+      apiKey: "AIzaSyAT9Vxm8gfpPn4Aliu3xXFGX8Ve9NY1UAk",
+      authDomain: "teacherboard-9224d.firebaseapp.com",
+      projectId: "teacherboard-9224d",
+      storageBucket: "teacherboard-9224d.appspot.com",
+      messagingSenderId: "801036213120",
+      appId: "1:801036213120:web:2077dc68b0a74395023f65"
+    };
 
-        document.addEventListener('DOMContentLoaded', () => {
-            initSeatingGrid();
-            initFirebase();
+    const firebaseConfig = (typeof __firebase_config !== 'undefined' && __firebase_config !== '')
+      ? JSON.parse(__firebase_config)
+      : customFirebaseConfig;
+
+    const fbApp = initializeApp(firebaseConfig);
+    const auth = getAuth(fbApp);
+    const db = getFirestore(fbApp);
+
+    // 匿名登入
+    signInAnonymously(auth).catch(err => console.error("Firebase 匿名登入失敗:", err));
+
+    // 掛載全域變數供座位表 JavaScript 使用
+    window.fbDb = db;
+    window.fbDoc = doc;
+    window.fbSetDoc = setDoc;
+    window.fbOnSnapshot = onSnapshot;
+
+    // 初始化雲端同步
+    if (window.initCloudSync) {
+      window.initCloudSync();
+    }
+  </script>
+
+  <!-- 座位表核心邏輯 JavaScript -->
+  <script>
+    // 狀態管理
+    let state = {
+      students: [],    // 學生清單 [{id: "01", name: "洪秉豪", gender: "男"}]
+      seats: {},       // 座位映射 { seatIndex: studentId }
+      roomId: "default"
+    };
+
+    let unsubscribe = null;
+
+    // 取得 URL 班級參數
+    function getRoomIdFromURL() {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get('room') || 'default';
+    }
+
+    // 初始化頁面
+    window.addEventListener('DOMContentLoaded', () => {
+      state.roomId = getRoomIdFromURL();
+      document.getElementById('roomInput').value = state.roomId;
+      renderGridSlots();
+    });
+
+    // 班級切換
+    function switchRoom() {
+      const newRoom = document.getElementById('roomInput').value.trim() || 'default';
+      window.history.pushState({}, '', `?room=${encodeURIComponent(newRoom)}`);
+      state.roomId = newRoom;
+      if (window.initCloudSync) {
+        window.initCloudSync();
+      }
+    }
+
+    // 更新狀態指示燈
+    function updateStatus(type, message) {
+      const el = document.getElementById('syncStatus');
+      if (type === 'online') {
+        el.className = "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800";
+        el.textContent = message || '🟢 雲端即時連線中';
+      } else if (type === 'offline') {
+        el.className = "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-800";
+        el.textContent = message || '🔴 連線失敗';
+      } else {
+        el.className = "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800";
+        el.textContent = message || '🟡 本機儲存';
+      }
+    }
+
+    // 1. 初始化 Firestore 雲端同步 (Firestore 版)
+    window.initCloudSync = function() {
+      if (!window.fbDb) {
+        updateStatus('offline', '🔴 Firebase 未就緒');
+        return;
+      }
+
+      const docRef = window.fbDoc(window.fbDb, "classrooms", state.roomId);
+
+      if (unsubscribe) unsubscribe();
+
+      // 開啟 Firestore 即時監聽
+      unsubscribe = window.fbOnSnapshot(docRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const cloudData = docSnap.data();
+          state.students = cloudData.students || [];
+          state.seats = cloudData.seats || {};
+          renderUI();
+          updateStatus('online', '🟢 雲端即時連線中');
+        } else {
+          // 若雲端尚無此班級，解析預設文字框名單並建立
+          parseAndImport(false); 
+          updateStatus('online', `🟢 雲端即時連線中 (${state.roomId})`);
+        }
+      }, (error) => {
+        console.error("Firestore 監聽失敗:", error);
+        updateStatus('offline', '🔴 雲端連線失敗');
+      });
+    };
+
+    // 2. 將資料推送到 Firestore 雲端
+    async function saveStateToCloud() {
+      if (!window.fbDb) {
+        localStorage.setItem('seatingData_' + state.roomId, JSON.stringify(state));
+        return;
+      }
+
+      try {
+        const docRef = window.fbDoc(window.fbDb, "classrooms", state.roomId);
+        await window.fbSetDoc(docRef, {
+          students: state.students,
+          seats: state.seats,
+          updatedAt: new Date().toISOString()
         });
+      } catch (err) {
+        console.error("儲存失敗:", err);
+        updateStatus('offline', '🔴 儲存失敗');
+      }
+    }
 
-        // 初始化 Firebase 與 即時同步監聽
-        function initFirebase() {
-            const statusDot = $('#statusDot');
-            const statusText = $('#statusText');
+    // 解析文字框名單
+    function parseAndImport(shouldSave = true) {
+      const text = document.getElementById('studentTextarea').value;
+      const lines = text.split('\n');
+      const parsed = [];
 
-            if (!firebaseConfig.apiKey || firebaseConfig.apiKey === "YOUR_API_KEY") {
-                statusDot.className = "w-2 h-2 rounded-full bg-amber-400";
-                statusText.textContent = "尚未設定 Firebase 金鑰 (使用本機儲存)";
-                loadPageDataFromLocal();
-                return;
-            }
-
-            try {
-                if (!firebase.apps.length) {
-                    firebase.initializeApp(firebaseConfig);
-                }
-                const db = firebase.database();
-                dbRef = db.ref('classroomSeating');
-
-                statusDot.className = "w-2 h-2 rounded-full bg-emerald-400 animate-pulse";
-                statusText.textContent = "雲端即時連線中";
-
-                // 監聽雲端資料變更 (即時同步)
-                dbRef.on('value', snapshot => {
-                    const data = snapshot.val();
-                    if (data) {
-                        isRemoteUpdating = true;
-                        applyAllDataToUI(data);
-                        isRemoteUpdating = false;
-                    }
-                }, error => {
-                    console.error('Firebase 讀取錯誤:', error);
-                    statusDot.className = "w-2 h-2 rounded-full bg-rose-500";
-                    statusText.textContent = "Firebase 連線失敗";
-                    loadPageDataFromLocal();
-                });
-
-            } catch (err) {
-                console.error('Firebase 初始化失敗:', err);
-                statusDot.className = "w-2 h-2 rounded-full bg-rose-500";
-                statusText.textContent = "Firebase 設定有誤";
-                loadPageDataFromLocal();
-            }
+      lines.forEach(line => {
+        const parts = line.trim().split(',');
+        if (parts.length >= 2) {
+          parsed.push({
+            id: parts[0].trim(),
+            name: parts[1].trim(),
+            gender: parts[2] ? parts[2].trim() : '男'
+          });
         }
+      });
 
-        function initSeatingGrid() {
-            const tableBody = $('#seatingTableBody');
-            tableBody.innerHTML = '';
-            let seatCounter = 1;
-
-            for (let r = 0; r < 5; r++) {
-                const tr = document.createElement('tr');
-                for (let c = 0; c < 6; c++) {
-                    const td = document.createElement('td');
-                    td.className = 'seat-cell p-0';
-                    td.dataset.seatNumber = seatCounter++;
-                    td.ondragstart = handleDragStart;
-                    td.ondragend = handleDragEnd;
-                    td.ondragover = handleDragOver;
-                    td.ondrop = handleDrop;
-                    td.onclick = () => { if (td.dataset.studentName) { selectedSeat = td; showRoleModal(); } };
-
-                    td.innerHTML = `
-                        <div class="seat-content w-32 h-24 border-2 border-slate-300 rounded-xl bg-white p-2 flex flex-col justify-between transition-all hover:shadow-md ${isRotated ? 'rotate-180' : ''}">
-                            <div class="seat-number text-sm font-black text-black text-left leading-none"></div>
-                            <div class="student-info text-xl font-black text-slate-900 text-center truncate my-auto px-0.5"></div>
-                            <div class="roles-badge flex flex-wrap justify-center gap-1 text-[10px] font-bold text-center truncate min-h-[18px]"></div>
-                        </div>
-                    `;
-                    tr.appendChild(td);
-                }
-                tableBody.appendChild(tr);
-            }
+      state.students = parsed;
+      // 保留合法 seat 映射
+      const validIds = new Set(parsed.map(s => s.id));
+      Object.keys(state.seats).forEach(seatIdx => {
+        if (!validIds.has(state.seats[seatIdx])) {
+          delete state.seats[seatIdx];
         }
+      });
 
-        function clearSeats() {
-            $$('td[data-seat-number]').forEach(clearSingleSeat);
-            renderUnassignedCards();
-            showNotification('已清空所有座位！');
-            saveData();
+      renderUI();
+      if (shouldSave) saveStateToCloud();
+    }
+
+    // 自動排座（男女相鄰 / 隨機）
+    function autoArrange(mode) {
+      if (state.students.length === 0) return;
+
+      let studentsToPlace = [...state.students];
+      state.seats = {};
+
+      if (mode === 'random') {
+        studentsToPlace.sort(() => Math.random() - 0.5);
+      } else if (mode === 'alternate') {
+        const boys = studentsToPlace.filter(s => s.gender === '男');
+        const girls = studentsToPlace.filter(s => s.gender === '女');
+        const result = [];
+        const maxLen = Math.max(boys.length, girls.length);
+        for (let i = 0; i < maxLen; i++) {
+          if (i < boys.length) result.push(boys[i]);
+          if (i < girls.length) result.push(girls[i]);
         }
+        studentsToPlace = result;
+      }
 
-        function toggleRotation() {
-            isRotated = !isRotated;
-            $('#blackboard').classList.toggle('rotate-180', isRotated);
-            $$('.seat-content').forEach(el => el.classList.toggle('rotate-180', isRotated));
-            showNotification(isRotated ? '已切換為 180° 視角' : '已恢復標準視角');
-            saveData();
+      // 填入前 30 個座位
+      studentsToPlace.forEach((student, index) => {
+        if (index < 30) {
+          state.seats[index] = student.id;
         }
+      });
 
-        function showNotification(msg, type = 'info') {
-            const n = document.createElement('div');
-            n.className = `fixed top-5 right-5 ${type === 'error' ? 'bg-rose-600' : 'bg-emerald-600'} text-white px-5 py-3 rounded-lg shadow-lg z-50 font-medium text-sm transition-all`;
-            n.textContent = msg;
-            document.body.appendChild(n);
-            setTimeout(() => n.remove(), 3000);
+      renderUI();
+      saveStateToCloud();
+    }
+
+    // 清空座位表
+    function clearBoard() {
+      state.seats = {};
+      renderUI();
+      saveStateToCloud();
+    }
+
+    // 生成 30 個座位 Slot HTML
+    function renderGridSlots() {
+      const grid = document.getElementById('seatingGrid');
+      grid.innerHTML = '';
+
+      for (let i = 0; i < 30; i++) {
+        const slot = document.createElement('div');
+        slot.className = 'seat-slot border-2 border-dashed border-slate-200 rounded-lg p-2 flex flex-col items-center justify-center bg-slate-50 relative';
+        slot.dataset.seatIndex = i;
+
+        // 拖曳事件
+        slot.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          slot.classList.add('drag-over');
+        });
+        slot.addEventListener('dragleave', () => slot.classList.remove('drag-over'));
+        slot.addEventListener('drop', (e) => handleDrop(e, i));
+
+        grid.appendChild(slot);
+      }
+    }
+
+    // 渲染 UI (更新座位格子與待分配池)
+    function renderUI() {
+      const slots = document.querySelectorAll('.seat-slot');
+      const assignedIds = new Set(Object.values(state.seats));
+
+      // 1. 更新 30 個座位格
+      slots.forEach((slot, index) => {
+        slot.innerHTML = `<span class="absolute top-1 left-2 text-[10px] text-slate-400 font-bold">${index + 1}</span>`;
+        const studentId = state.seats[index];
+
+        if (studentId) {
+          const student = state.students.find(s => s.id === studentId);
+          if (student) {
+            slot.appendChild(createStudentCard(student));
+          }
         }
+      });
 
-        function parseAndImportStudents() {
-            const text = $('#studentList').value.trim();
-            if (!text) return showNotification('請先輸入學生名單！', 'error');
+      // 2. 更新未分配池
+      const unassignedPool = document.getElementById('unassignedPool');
+      unassignedPool.innerHTML = '';
+      const unassignedStudents = state.students.filter(s => !assignedIds.has(s.id));
+      document.getElementById('unassignedCount').textContent = unassignedStudents.length;
 
-            students = text.split('\n').map(line => {
-                const p = line.split(',').map(s => s.trim());
-                return p.length >= 2 ? { number: p[0], name: p[1], gender: p[2] || '未指定' } : null;
-            }).filter(Boolean);
+      unassignedStudents.forEach(student => {
+        unassignedPool.appendChild(createStudentCard(student, true));
+      });
+    }
 
-            renderUnassignedCards();
-            showNotification(`已成功匯入 ${students.length} 位學生名單`);
-            saveData();
+    // 建立學生卡片 DOM
+    function createStudentCard(student, isMini = false) {
+      const card = document.createElement('div');
+      card.draggable = true;
+      card.dataset.studentId = student.id;
+
+      const genderBg = student.gender === '女' ? 'bg-pink-100 text-pink-800 border-pink-200' : 'bg-blue-100 text-blue-800 border-blue-200';
+
+      if (isMini) {
+        card.className = `student-card px-2.5 py-1 rounded border text-xs font-medium flex items-center gap-1 shadow-sm ${genderBg}`;
+        card.innerHTML = `<span class="font-bold">${student.id}</span> ${student.name}`;
+      } else {
+        card.className = `student-card w-full h-full rounded-md p-1.5 border flex flex-col items-center justify-center shadow-sm ${genderBg}`;
+        card.innerHTML = `
+          <span class="text-[10px] font-bold opacity-75">${student.id}</span>
+          <span class="text-sm font-bold mt-0.5">${student.name}</span>
+        `;
+      }
+
+      card.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', student.id);
+      });
+
+      return card;
+    }
+
+    // 拖曳放置邏輯
+    function handleDrop(e, targetSeatIndex) {
+      e.preventDefault();
+      document.querySelectorAll('.seat-slot').forEach(s => s.classList.remove('drag-over'));
+
+      const studentId = e.dataTransfer.getData('text/plain');
+      if (!studentId) return;
+
+      // 如果該學生原本在別的座位，先移除舊位置
+      Object.keys(state.seats).forEach(seatIdx => {
+        if (state.seats[seatIdx] === studentId) {
+          delete state.seats[seatIdx];
         }
+      });
 
-        function renderUnassignedCards() {
-            const container = $('#studentCards');
-            container.innerHTML = '';
-            const assignedNumbers = new Set(Array.from($$('td[data-seat-number]')).map(td => td.dataset.studentNumber).filter(Boolean));
-            const unassigned = students.filter(s => !assignedNumbers.has(s.number));
-            
-            $('#unassignedCount').textContent = unassigned.length;
-            if (!unassigned.length) {
-                container.innerHTML = '<div class="text-xs text-slate-400 w-full text-center py-6">所有學生已安排座位</div>';
-                return;
-            }
-            unassigned.forEach(s => container.appendChild(createStudentCard(s)));
-        }
+      // 放進新位置
+      state.seats[targetSeatIndex] = studentId;
 
-        function createStudentCard(s) {
-            const card = document.createElement('div');
-            const bgClass = s.gender === '男' ? 'bg-blue-100 text-blue-800 border-blue-300' :
-                            s.gender === '女' ? 'bg-pink-100 text-pink-800 border-pink-300' : 'bg-slate-100 text-slate-800 border-slate-300';
-            
-            card.className = `student-card px-3 py-1.5 rounded-md border ${bgClass} text-xs font-bold cursor-move shadow-sm hover:scale-105 transition-transform flex items-center gap-1`;
-            card.draggable = true;
-            Object.assign(card.dataset, { studentName: s.name, studentGender: s.gender, studentNumber: s.number });
-            card.innerHTML = `<span class="opacity-60 text-[10px]">${s.number}.</span>${s.name}`;
-            card.ondragstart = e => { draggedElement = card; e.dataTransfer.effectAllowed = 'move'; };
-            return card;
-        }
-
-        function assignStudentToSeat(seatCell, student) {
-            const info = seatCell.querySelector('.student-info');
-            const content = seatCell.querySelector('.seat-content');
-            const num = seatCell.querySelector('.seat-number');
-            
-            if (info && content) {
-                info.textContent = student.name;
-                seatCell.draggable = true;
-                content.classList.add('cursor-move');
-                if (num) num.textContent = student.number || '';
-                content.style.backgroundColor = student.gender === '男' ? '#dbeafe' : student.gender === '女' ? '#fce7f3' : '#f8fafc';
-                Object.assign(seatCell.dataset, { studentName: student.name, studentGender: student.gender, studentNumber: student.number });
-            }
-        }
-
-        function clearSingleSeat(seatCell) {
-            const info = seatCell.querySelector('.student-info');
-            const content = seatCell.querySelector('.seat-content');
-            const num = seatCell.querySelector('.seat-number');
-            const rolesBadge = seatCell.querySelector('.roles-badge');
-            
-            if (info) info.textContent = '';
-            if (rolesBadge) rolesBadge.innerHTML = '';
-            if (content) { content.style.backgroundColor = 'white'; content.classList.remove('cursor-move'); }
-            if (num) num.textContent = '';
-            
-            seatCell.draggable = false;
-            ['studentName', 'studentGender', 'studentNumber', 'roles'].forEach(k => delete seatCell.dataset[k]);
-        }
-
-        function updateSeatRoleDisplay(seatCell) {
-            const badge = seatCell.querySelector('.roles-badge');
-            if (!badge) return;
-            badge.innerHTML = '';
-            const rolesData = seatCell.dataset.roles || '';
-            if (rolesData) {
-                rolesData.split(',').filter(r => r.trim()).forEach(roleName => {
-                    const style = getRoleColor(roleName.trim());
-                    const span = document.createElement('span');
-                    span.className = `px-1.5 py-0.5 rounded text-[10px] font-bold border ${style.bg} leading-tight`;
-                    span.textContent = roleName.trim();
-                    badge.appendChild(span);
-                });
-            }
-        }
-
-        function randomSort() {
-            if (!students.length) return alert('請先匯入學生名單！');
-            clearSeats();
-            const shuffled = [...students].sort(() => Math.random() - 0.5);
-            const cells = $$('td[data-seat-number]');
-            shuffled.forEach((st, i) => i < cells.length && assignStudentToSeat(cells[i], st));
-            renderUnassignedCards();
-            showNotification('隨機分配座位完成！');
-            saveData();
-        }
-
-        function genderAlternate() {
-            if (!students.length) return alert('請先匯入學生名單！');
-            clearSeats();
-            const males = students.filter(s => s.gender === '男').sort(() => Math.random() - 0.5);
-            const females = students.filter(s => s.gender === '女').sort(() => Math.random() - 0.5);
-            const others = students.filter(s => s.gender !== '男' && s.gender !== '女');
-            const cells = $$('td[data-seat-number]');
-            
-            let mi = 0, fi = 0, oi = 0;
-            for (let i = 0; i < cells.length; i++) {
-                let st = (i % 2 === 0) ? (males[mi++] || females[fi++] || others[oi++]) : (females[fi++] || males[mi++] || others[oi++]);
-                if (st) assignStudentToSeat(cells[i], st);
-            }
-            renderUnassignedCards();
-            showNotification('男女相鄰分配完成！');
-            saveData();
-        }
-
-        function handleDragStart(e) {
-            const cell = e.target.closest('td[data-seat-number]');
-            if (!cell || !cell.draggable) return;
-            draggedElement = cell;
-            cell.style.opacity = '0.5';
-            e.dataTransfer.effectAllowed = 'move';
-        }
-
-        function handleDragEnd(e) {
-            const cell = e.target.closest('td[data-seat-number]');
-            if (cell) cell.style.opacity = '1';
-            draggedElement = null;
-        }
-
-        function handleDragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }
-
-        function handleDrop(e) {
-            e.preventDefault();
-            const dropCell = e.target.closest('td[data-seat-number]');
-            if (!draggedElement || !dropCell) return;
-            
-            if (draggedElement.classList.contains('student-card')) {
-                if (dropCell.dataset.studentName) return showNotification('❌ 該座位已有學生，請選擇空座位！', 'error');
-                assignStudentToSeat(dropCell, {
-                    name: draggedElement.dataset.studentName,
-                    gender: draggedElement.dataset.studentGender,
-                    number: draggedElement.dataset.studentNumber
-                });
-                draggedElement.remove();
-                renderUnassignedCards();
-                saveData();
-                return;
-            }
-            
-            if (dropCell !== draggedElement) {
-                const d = { ...draggedElement.dataset }, p = { ...dropCell.dataset };
-                
-                p.studentName ? assignStudentToSeat(draggedElement, { name: p.studentName, gender: p.studentGender, number: p.studentNumber }) : clearSingleSeat(draggedElement);
-                if (p.roles) { draggedElement.dataset.roles = p.roles; updateSeatRoleDisplay(draggedElement); } else { delete draggedElement.dataset.roles; updateSeatRoleDisplay(draggedElement); }
-                
-                d.studentName ? assignStudentToSeat(dropCell, { name: d.studentName, gender: d.studentGender, number: d.studentNumber }) : clearSingleSeat(dropCell);
-                if (d.roles) { dropCell.dataset.roles = d.roles; updateSeatRoleDisplay(dropCell); } else { delete dropCell.dataset.roles; updateSeatRoleDisplay(dropCell); }
-                
-                renderUnassignedCards();
-                saveData();
-            }
-        }
-
-        function handleCardsDrop(e) {
-            e.preventDefault();
-            if (!draggedElement) return;
-            const cell = draggedElement.closest('td[data-seat-number]');
-            if (cell) {
-                clearSingleSeat(cell);
-                renderUnassignedCards();
-                showNotification('已撤回學生名牌');
-                saveData();
-            }
-        }
-
-        function showRoleModal() {
-            toggleModal('#roleModal', true);
-            selectedRoles.clear();
-            if (selectedSeat && selectedSeat.dataset.roles) {
-                selectedSeat.dataset.roles.split(',').forEach(r => r.trim() && selectedRoles.add(r.trim()));
-            }
-            renderRoleOptions();
-        }
-
-        function renderRoleOptions() {
-            const container = $('#roleContainer');
-            container.innerHTML = customRoles.length ? '' : `<div class="col-span-2 text-center text-xs text-slate-400 py-4">尚無工作項目，請點擊「管理工作項目」進行新增。</div>`;
-
-            customRoles.forEach(role => {
-                const isSelected = selectedRoles.has(role);
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                btn.className = `p-3 border rounded-lg text-left transition flex items-center justify-between text-sm font-bold ${isSelected ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'hover:bg-slate-50 border-slate-200 text-slate-700'}`;
-                btn.onclick = () => toggleRole(role);
-                btn.innerHTML = `<span>${role}</span><i class="fa-solid fa-check text-indigo-600 ${isSelected ? '' : 'hidden'}"></i>`;
-                container.appendChild(btn);
-            });
-        }
-
-        function toggleRole(role) {
-            selectedRoles.has(role) ? selectedRoles.delete(role) : selectedRoles.add(role);
-            renderRoleOptions();
-        }
-
-        function clearAllRoles() { selectedRoles.clear(); renderRoleOptions(); }
-
-        function applyRoles() {
-            if (selectedSeat) {
-                selectedSeat.dataset.roles = Array.from(selectedRoles).join(',');
-                updateSeatRoleDisplay(selectedSeat);
-                saveData();
-            }
-            toggleModal('#roleModal', false);
-        }
-
-        function openManageRolesModal() { toggleModal('#manageRolesModal', true); renderRolesManageList(); }
-
-        function renderRolesManageList() {
-            const list = $('#rolesManageList');
-            list.innerHTML = customRoles.length ? '' : `<div class="text-xs text-slate-400 py-2 text-center">目前無任何工作內容</div>`;
-
-            customRoles.forEach((role, i) => {
-                const item = document.createElement('div');
-                item.className = 'flex items-center gap-2 bg-slate-50 p-2 rounded-lg border border-slate-200';
-                item.innerHTML = `
-                    <input type="text" value="${role}" id="role-edit-${i}" class="flex-1 bg-white border border-slate-300 rounded px-2 py-1 text-sm font-medium focus:ring-1 focus:ring-indigo-500">
-                    <button onclick="saveRoleEdit(${i})" class="text-indigo-600 hover:text-indigo-800 p-1 text-sm"><i class="fa-solid fa-check"></i></button>
-                    <button onclick="deleteRole(${i})" class="text-rose-500 hover:text-rose-700 p-1 text-sm"><i class="fa-solid fa-trash"></i></button>
-                `;
-                list.appendChild(item);
-            });
-        }
-
-        function addNewRole() {
-            const input = $('#newRoleInput');
-            const val = input.value.trim();
-            if (!val) return showNotification('請輸入工作名稱', 'error');
-            if (customRoles.includes(val)) return showNotification('該工作名稱已存在！', 'error');
-            customRoles.push(val);
-            input.value = '';
-            renderRolesManageList();
-            showNotification(`已新增工作項目：${val}`);
-            saveData();
-        }
-
-        function saveRoleEdit(index) {
-            const newName = $(`#role-edit-${index}`).value.trim();
-            if (!newName) return showNotification('工作名稱不可為空', 'error');
-            const oldName = customRoles[index];
-            customRoles[index] = newName;
-            
-            $$('td[data-seat-number]').forEach(cell => {
-                if (cell.dataset.roles) {
-                    cell.dataset.roles = cell.dataset.roles.split(',').map(r => r === oldName ? newName : r).join(',');
-                    updateSeatRoleDisplay(cell);
-                }
-            });
-            renderRolesManageList();
-            showNotification(`已修改為：${newName}`);
-            saveData();
-        }
-
-        function deleteRole(index) {
-            const roleName = customRoles[index];
-            customRoles.splice(index, 1);
-            $$('td[data-seat-number]').forEach(cell => {
-                if (cell.dataset.roles) {
-                    cell.dataset.roles = cell.dataset.roles.split(',').filter(r => r !== roleName).join(',');
-                    updateSeatRoleDisplay(cell);
-                }
-            });
-            renderRolesManageList();
-            showNotification(`已刪除工作項目：${roleName}`);
-            saveData();
-        }
-
-        // ==========================================
-        // 💾 資料同步與儲存邏輯 (Local Storage & Firebase)
-        // ==========================================
-
-        function getSeatingDataPayload() {
-            const seatingData = [];
-            $$('td[data-seat-number]').forEach(cell => {
-                if (cell.dataset.studentName) {
-                    seatingData.push({
-                        seatNumber: cell.dataset.seatNumber,
-                        studentName: cell.dataset.studentName,
-                        studentGender: cell.dataset.studentGender || '',
-                        studentNumber: cell.dataset.studentNumber || '',
-                        roles: cell.dataset.roles || ''
-                    });
-                }
-            });
-            return {
-                students: students,
-                customRoles: customRoles,
-                seatingData: seatingData,
-                isRotated: isRotated
-            };
-        }
-
-        function saveData() {
-            if (isRemoteUpdating) return; // 如果是由雲端觸發的更新，就不再重複回推
-
-            const payload = getSeatingDataPayload();
-            
-            // 1. 本地 LocalStorage 備份
-            localStorage.setItem('classroomSeatingData', JSON.stringify(payload));
-
-            // 2. 推送至 Firebase 雲端
-            if (dbRef) {
-                dbRef.set(payload).catch(err => console.error('Firebase 同步失敗:', err));
-            }
-        }
-
-        function loadPageDataFromLocal() {
-            try {
-                const data = JSON.parse(localStorage.getItem('classroomSeatingData') || '{}');
-                applyAllDataToUI(data);
-            } catch (e) { console.error('載入失敗', e); }
-        }
-
-        function applyAllDataToUI(data) {
-            if (!data) return;
-
-            if (data.customRoles) customRoles = data.customRoles;
-            if (data.students) {
-                students = data.students;
-                $('#studentList').value = students.map(s => `${s.number},${s.name},${s.gender}`).join('\n');
-            }
-
-            // 清空座位重新劃分
-            $$('td[data-seat-number]').forEach(clearSingleSeat);
-
-            if (data.seatingData?.length) {
-                data.seatingData.forEach(d => {
-                    const cell = $(`td[data-seat-number="${d.seatNumber}"]`);
-                    if (cell) {
-                        assignStudentToSeat(cell, { name: d.studentName, gender: d.studentGender, number: d.studentNumber });
-                        if (d.roles || d.role) { cell.dataset.roles = d.roles || d.role; updateSeatRoleDisplay(cell); }
-                    }
-                });
-            }
-
-            if (data.isRotated !== undefined && data.isRotated !== isRotated) {
-                isRotated = data.isRotated;
-                $('#blackboard').classList.toggle('rotate-180', isRotated);
-                $$('.seat-content').forEach(el => el.classList.toggle('rotate-180', isRotated));
-            }
-
-            renderUnassignedCards();
-        }
-
-        function clearSavedData() {
-            if (confirm('確定要清除所有儲存的資料嗎？此操作無法復原。')) {
-                localStorage.removeItem('classroomSeatingData');
-                if (dbRef) dbRef.remove();
-                
-                students = [];
-                $('#studentList').value = '';
-                clearSeats();
-                renderUnassignedCards();
-                showNotification('儲存的資料已成功清除！');
-            }
-        }
-
-        function downloadSeatingChart() {
-            try {
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                canvas.width = 960; canvas.height = 750;
-                
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                
-                // 標題
-                ctx.save();
-                ctx.translate(canvas.width / 2, 42);
-                if (isRotated) ctx.rotate(Math.PI);
-                ctx.fillStyle = '#0f172a'; ctx.font = 'bold 32px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                ctx.fillText('教室座位表', 0, 0);
-                ctx.restore();
-
-                // 講台
-                ctx.save();
-                ctx.translate(canvas.width / 2, 90);
-                if (isRotated) ctx.rotate(Math.PI);
-                ctx.fillStyle = '#059669'; ctx.fillRect(-160, -18, 320, 36);
-                ctx.fillStyle = '#ffffff'; ctx.font = 'bold 18px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                ctx.fillText('黑板 / 講台', 0, 0);
-                ctx.restore();
-                
-                const startX = 80, startY = 135, cellW = 124, cellH = 92;
-                const seatCells = $$('td[data-seat-number]');
-                
-                for (let r = 0; r < 5; r++) {
-                    for (let c = 0; c < 6; c++) {
-                        const cell = seatCells[r * 6 + c];
-                        const name = cell?.dataset.studentName || '', num = cell?.dataset.studentNumber || '', gender = cell?.dataset.studentGender || '', roles = cell?.dataset.roles || '';
-                        
-                        ctx.save();
-                        ctx.translate(startX + c * 132 + cellW / 2, startY + r * 100 + cellH / 2);
-                        if (isRotated) ctx.rotate(Math.PI);
-
-                        ctx.fillStyle = name ? (gender === '男' ? '#dbeafe' : gender === '女' ? '#fce7f3' : '#f8fafc') : '#ffffff';
-                        ctx.fillRect(-cellW / 2, -cellH / 2, cellW, cellH);
-                        ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 2;
-                        ctx.strokeRect(-cellW / 2, -cellH / 2, cellW, cellH);
-
-                        if (name && num) {
-                            ctx.fillStyle = '#000000'; ctx.font = 'bold 16px Arial'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-                            ctx.fillText(num, -cellW / 2 + 8, -cellH / 2 + 8);
-                        }
-
-                        if (name) {
-                            ctx.fillStyle = '#0f172a'; ctx.font = 'bold 25px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                            ctx.fillText(name, 0, -4);
-
-                            if (roles) {
-                                const roleList = roles.split(',').filter(r => r.trim());
-                                const badges = roleList.map(r => {
-                                    const style = getRoleColor(r.trim());
-                                    ctx.font = 'bold 10px Arial';
-                                    return { text: r.trim(), width: ctx.measureText(r.trim()).width + 8, style };
-                                });
-
-                                const totalW = badges.reduce((a, b) => a + b.width, 0) + (badges.length - 1) * 4;
-                                let bx = -totalW / 2;
-
-                                badges.forEach(b => {
-                                    ctx.fillStyle = b.style.hexBg;
-                                    ctx.fillRect(bx, cellH / 2 - 16, b.width, 14);
-                                    ctx.fillStyle = b.style.hexText; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                                    ctx.fillText(b.text, bx + b.width / 2, cellH / 2 - 9);
-                                    bx += b.width + 4;
-                                });
-                            }
-                        }
-                        ctx.restore();
-                    }
-                }
-
-                const link = document.createElement('a');
-                link.download = `教室座位表_${isRotated ? '旋轉180度視角_' : ''}${new Date().toISOString().slice(0, 10)}.png`;
-                link.href = canvas.toDataURL('image/png');
-                link.click();
-                showNotification('座位表圖片已成功下載！');
-            } catch (err) {
-                console.error(err);
-                alert('下載圖片時發生錯誤。');
-            }
-        }
-    </script>
+      renderUI();
+      saveStateToCloud();
+    }
+  </script>
 </body>
 </html>
