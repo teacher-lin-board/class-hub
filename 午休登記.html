@@ -84,14 +84,13 @@
 
   <script>
     // --- Firebase 配置與初始化 ---
-    // 請將下方 firebaseConfig 替換為您的 Firebase 專案設定
     const firebaseConfig = {
-         apiKey: "AIzaSyAT9VXm8gf5Pn4A1iu3xXF6X8Ve9NYlUAk",
-  authDomain: "teacherboard-9224d.firebaseapp.com",
-  projectId: "teacherboard-9224d",
-  storageBucket: "teacherboard-9224d.firebasestorage.app",
-  messagingSenderId: "801036213120",
-  appId: "1:801036213120:web:2077de68b0a74395023f65"
+        apiKey: "AIzaSyAT9VXm8gf5Pn4A1iu3xXF6X8Ve9NYlUAk",
+        authDomain: "teacherboard-9224d.firebaseapp.com",
+        projectId: "teacherboard-9224d",
+        storageBucket: "teacherboard-9224d.firebasestorage.app",
+        messagingSenderId: "801036213120",
+        appId: "1:801036213120:web:2077de68b0a74395023f65"
     };
 
     let db = null;
@@ -216,9 +215,10 @@
         document.getElementById('clock').textContent = now.toLocaleTimeString('zh-TW', { hour12: false });
     }
 
+    // 修正：允許重複號碼新增
     function addExemptStudent() {
         const input = document.getElementById('exemptInput'), num = parseInt(input.value);
-        if (num >= 1 && num <= totalStudents && !exemptStudents.includes(num)) {
+        if (num >= 1 && num <= totalStudents) {
             exemptStudents.push(num);
             renderExemptStudents();
             input.value = '';
@@ -235,9 +235,10 @@
         }
     }
 
+    // 修正：允許重複號碼新增
     function addNextRegister() {
         const input = document.getElementById('nextInput'), num = parseInt(input.value);
-        if (num >= 1 && num <= totalStudents && !nextRegisters.includes(num)) {
+        if (num >= 1 && num <= totalStudents) {
             nextRegisters.push(num);
             renderNextRegisters();
             input.value = '';
