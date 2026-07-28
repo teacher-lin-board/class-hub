@@ -227,12 +227,12 @@
         // Firebase Setup
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'class-blackboard-app';
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-             apiKey: "AIzaSyAT9VXm8gf5Pn4A1iu3xXF6X8Ve9NYlUAk",
-  authDomain: "teacherboard-9224d.firebaseapp.com",
-  projectId: "teacherboard-9224d",
-  storageBucket: "teacherboard-9224d.firebasestorage.app",
-  messagingSenderId: "801036213120",
-  appId: "1:801036213120:web:2077de68b0a74395023f65"
+            apiKey: "AIzaSyAT9VXm8gf5Pn4A1iu3xXF6X8Ve9NYlUAk",
+            authDomain: "teacherboard-9224d.firebaseapp.com",
+            projectId: "teacherboard-9224d",
+            storageBucket: "teacherboard-9224d.firebasestorage.app",
+            messagingSenderId: "801036213120",
+            appId: "1:801036213120:web:2077de68b0a74395023f65"
         };
 
         const firebaseApp = initializeApp(firebaseConfig);
@@ -261,6 +261,7 @@
             init: async function() {
                 this.currentWeekBase = this.getMonday(new Date());
                 this.startClock();
+                this.loadFromLocalStorage(); // 預先讀取本地暫存
 
                 // Auth & Cloud Sync setup
                 try {
@@ -273,15 +274,21 @@
                         this.user = userCred.user;
                     }
                     
-                    // Public Document for collaborative blackboard
-                    this.dbDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'classboard_data');
+                    // 修正：Firestore document 路徑必須為偶數層級 (artifacts/appId/public/classboard_data)
+                    this.dbDocRef = doc(db, 'artifacts', appId, 'public', 'classboard_data');
                     
                     // Realtime listener
                     onSnapshot(this.dbDocRef, (docSnap) => {
+                        // 若為本機即時寫入觸發的回調，跳過重繪以防止打字輸入中斷
+                        if (docSnap.metadata && docSnap.metadata.hasPendingWrites) {
+                            return;
+                        }
+
                         if (docSnap.exists()) {
                             const cloudData = docSnap.data();
                             if (cloudData.data) this.data = cloudData.data;
                             if (cloudData.settings) this.settings = cloudData.settings;
+                            this.saveToLocalStorage();
                         }
                         this.initHomeView();
                         this.updateSyncStatus('success', '雲端同步完成');
@@ -300,6 +307,7 @@
 
             getMonday: function(d) {
                 d = new Date(d);
+                d.setHours(0, 0, 0, 0);
                 const day = d.getDay();
                 const diff = d.getDate() - day + (day === 0 ? -6 : 1);
                 return new Date(d.setDate(diff));
@@ -309,7 +317,6 @@
                 const d = new Date(this.currentWeekBase);
                 d.setDate(d.getDate() + this.currentDayIndex);
                 
-                // 抓取台灣本地時間 (避免 UTC 8 小時時差)
                 const year = d.getFullYear();
                 const month = String(d.getMonth() + 1).padStart(2, '0');
                 const day = String(d.getDate()).padStart(2, '0');
@@ -318,7 +325,11 @@
 
             initHomeView: function() {
                 const sets = this.settings;
-                const setVal = (id, val) => { const el = document.getElementById(id); if(el) el.value = val || ''; };
+                const setVal = (id, val) => { 
+                    const el = document.getElementById(id); 
+                    // 若當前游標停留在該輸入框，則不強制覆蓋文字
+                    if(el && document.activeElement !== el) el.value = val || ''; 
+                };
                 
                 setVal('duty-1', sets.duty1);
                 setVal('duty-2', sets.duty2);
@@ -402,7 +413,6 @@
             },
 
             renderTodoList: function() {
-                // 畫面前記住目前焦點與游標位置，防止打字時游標跳動
                 const activeElement = document.activeElement;
                 let activeIndex = -1;
                 let cursorPosition = 0;
@@ -431,7 +441,6 @@
                     listEl.appendChild(div);
                 });
 
-                // 畫面畫完後把游標放回原處
                 if (activeIndex !== -1) {
                     setTimeout(() => {
                         const inputs = listEl.querySelectorAll('.chalk-input');
@@ -472,7 +481,7 @@
                     if (this.todoSaveTimer) clearTimeout(this.todoSaveTimer);
                     this.todoSaveTimer = setTimeout(() => {
                         this.saveToCloud(); 
-                    }, 1500);
+                    }, 1000);
                 }
             },
 
@@ -491,11 +500,11 @@
                 const iInput = document.getElementById('idiom-input');
                 const iDesc = document.getElementById('idiom-desc');
                 
-                if(iInput) {
+                if(iInput && document.activeElement !== iInput) {
                     iInput.value = data.idiom || '';
                     iInput.style.fontSize = (this.settings.idiomFontSize || 24) + 'px';
                 }
-                if(iDesc) {
+                if(iDesc && document.activeElement !== iDesc) {
                     iDesc.value = data.idiomDesc || '';
                     iDesc.style.fontSize = Math.max(14, (this.settings.idiomFontSize || 24) - 4) + 'px';
                 }
@@ -516,7 +525,7 @@
                 if (this.idiomSaveTimer) clearTimeout(this.idiomSaveTimer);
                 this.idiomSaveTimer = setTimeout(() => {
                     this.saveToCloud();
-                }, 1500);
+                }, 1000);
             },
 
             changeIdiomFontSize: function(delta) {
@@ -577,7 +586,28 @@
                 this.saveSettings();
             },
 
+            saveToLocalStorage: function() {
+                try {
+                    localStorage.setItem('classboard_local_data', JSON.stringify(this.data));
+                    localStorage.setItem('classboard_local_settings', JSON.stringify(this.settings));
+                } catch (e) {
+                    console.warn("LocalStorage save failed", e);
+                }
+            },
+
+            loadFromLocalStorage: function() {
+                try {
+                    const localData = localStorage.getItem('classboard_local_data');
+                    const localSettings = localStorage.getItem('classboard_local_settings');
+                    if (localData) this.data = JSON.parse(localData);
+                    if (localSettings) this.settings = JSON.parse(localSettings);
+                } catch (e) {
+                    console.warn("LocalStorage load failed", e);
+                }
+            },
+
             saveToCloud: async function() {
+                this.saveToLocalStorage();
                 if (!this.dbDocRef) return;
                 try {
                     this.updateSyncStatus('syncing', '儲存中...');
